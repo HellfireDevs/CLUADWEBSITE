@@ -38,7 +38,7 @@ const Navbar = () => {
         <a href="#hero" className="hover:text-white transition-colors">Home</a>
         <a href="#bots" className="hover:text-purple-400 transition-colors">Arsenal</a>
         <a href="#network" className="hover:text-red-400 transition-colors">Network</a>
-        <a href="#intel" className="hover:text-blue-400 transition-colors">Intel Hub</a>
+        <a href="#web" className="hover:text-blue-400 transition-colors">Websites</a>
       </div>
 
       <a href="https://t.me/NEX_FUCKR" target="_blank" rel="noreferrer" className="hidden md:flex bg-white/10 hover:bg-purple-600 border border-white/10 hover:border-purple-500 text-white px-4 py-2 rounded-full text-sm font-bold transition-all items-center gap-2">
@@ -85,7 +85,25 @@ const BotCard = ({ name, description, icon: Icon, tag, link, comingSoon }) => (
   </motion.div>
 );
 
-// 3. Network Intel Card
+// 3. Web App Widget (Apple style - THIS IS THE RESTORED SECTION COMPONENT)
+const WebCard = ({ name, type, link }) => (
+  <motion.a 
+    href={link} target="_blank" rel="noopener noreferrer"
+    variants={fadeInUp}
+    whileHover={{ y: -5, scale: 1.02 }}
+    whileTap={{ scale: 0.95 }}
+    className="relative overflow-hidden flex items-center gap-5 p-6 rounded-3xl bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 hover:border-blue-500/50 group transition-all h-full"
+  >
+    <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-blue-500/20 blur-3xl rounded-full group-hover:bg-blue-500/40 transition-all"></div>
+    <div className="bg-blue-500/10 p-4 rounded-2xl border border-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform"><Globe size={24} /></div>
+    <div className="relative z-10">
+      <h4 className="text-white font-extrabold text-xl mb-1">{name}</h4>
+      <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">{type}</p>
+    </div>
+  </motion.a>
+);
+
+// 4. Network Intel Card
 const IntelCard = ({ name, description, icon: Icon, link, btnText, color }) => (
   <motion.a 
     href={link} target="_blank" rel="noopener noreferrer"
@@ -104,7 +122,7 @@ const IntelCard = ({ name, description, icon: Icon, link, btnText, color }) => (
   </motion.a>
 );
 
-// 4. Team Profile
+// 5. Team Profile
 const TeamMember = ({ name, role, link, letter, isMod }) => (
   <motion.a 
     href={link} target="_blank" rel="noopener noreferrer"
@@ -123,7 +141,7 @@ const TeamMember = ({ name, role, link, letter, isMod }) => (
   </motion.a>
 );
 
-// 5. Fighter/Community Box
+// 6. Fighter/Community Box
 const FighterBox = ({ title, desc, icon: Icon, link }) => (
   <motion.a 
     href={link} target="_blank" rel="noopener noreferrer"
@@ -138,7 +156,7 @@ const FighterBox = ({ title, desc, icon: Icon, link }) => (
   </motion.a>
 );
 
-// 6. Seller Card
+// 7. Seller Card
 const SellerCard = ({ name, services, link }) => (
   <motion.a 
     href={link} target="_blank" rel="noopener noreferrer"
@@ -160,11 +178,12 @@ const SellerCard = ({ name, services, link }) => (
 // --- MAIN APP ---
 export default function App() {
   return (
-    <div className="text-gray-200 min-h-screen font-sans relative selection:bg-purple-500/30 scroll-smooth">
+    // FIX: Added overflow-x-hidden aur w-full to prevent horizontal gap on Laptop/PC
+    <div className="text-gray-200 min-h-screen w-full overflow-x-hidden font-sans relative selection:bg-purple-500/30 scroll-smooth">
       <Background />
       <Navbar />
 
-      <div className="relative z-10">
+      <div className="relative z-10 w-full">
         
         {/* 🚀 HERO SECTION */}
         <section id="hero" className="min-h-screen flex flex-col justify-center items-center text-center p-6 pt-32 relative">
@@ -204,7 +223,7 @@ export default function App() {
             </motion.a>
           </motion.div>
 
-          {/* 🔥 NEW: Hero Bhaichara & Banning Buttons */}
+          {/* 🔥 Hero Bhaichara & Banning Buttons */}
           <motion.div className="flex flex-wrap justify-center w-full gap-4 mt-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
             <motion.a href="https://bhaichra.vercel.app/" target="_blank" rel="noreferrer" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="bg-gradient-to-r from-red-900/40 to-black border border-red-600/50 hover:border-red-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all">
               <Swords size={18}/> BHAICHARA
@@ -289,8 +308,24 @@ export default function App() {
           </div>
         </motion.section>
 
+        {/* 🌐 RESTORED: WEBSITES & API NETWORK */}
+        <motion.section id="web" className="py-24 p-6 md:p-12 lg:p-24 max-w-7xl mx-auto relative border-t border-white/5" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-3xl bg-blue-900/10 blur-[120px] rounded-full -z-10"></div>
+          
+          <motion.div variants={fadeInUp} className="mb-16 text-center md:text-left">
+              <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-[0.2em] flex items-center gap-2 w-fit mb-6 mx-auto md:mx-0"><Globe size={14}/> Web Assets</span>
+              <h2 className="text-4xl md:text-6xl font-black text-white">The Web <span className="text-blue-500">Matrix</span></h2>
+              <p className="text-gray-400 mt-4 text-lg">Beyond Telegram. Experience our seamless web applications.</p>
+          </motion.div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <WebCard name="YukiTones" type="Music Web Platform" link="https://yukitones.vercel.app/" />
+            <WebCard name="Nex Audio" type="Music Interface" link="https://muisc-website.vercel.app/" />
+            <WebCard name="YukiAPI" type="Central Neural Hub" link="https://Yukiapi.site" />
+          </div>
+        </motion.section>
+
         {/* 💻 TEAM & UPCOMING */}
-        <motion.section id="team" className="py-24 p-6 md:p-12 lg:p-24 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
+        <motion.section id="team" className="py-24 p-6 md:p-12 lg:p-24 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 border-t border-white/5" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
           {/* Team & Mods */}
           <div>
             <motion.div variants={fadeInUp} className="mb-10">
@@ -330,7 +365,7 @@ export default function App() {
           </motion.div>
         </motion.section>
 
-        {/* 🔗 NEW: NETWORK DIRECTORY (Quick Access Buttons) */}
+        {/* 🔗 NETWORK DIRECTORY (Quick Access Buttons) */}
         <motion.section className="py-20 p-6 md:p-12 max-w-7xl mx-auto border-t border-white/5" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
           <motion.div variants={fadeInUp} className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-widest">Network Directory</h2>
@@ -350,7 +385,7 @@ export default function App() {
             <a href="https://bhaichra.vercel.app/" target="_blank" rel="noreferrer" className="bg-white/5 hover:bg-red-900/40 border border-white/10 hover:border-red-600 text-white font-bold px-6 py-4 rounded-2xl flex items-center gap-3 transition-all">
               <Swords size={20} className="text-red-600"/> Our Fighters
             </a>
-            <a href="#intel" className="bg-white/5 hover:bg-blue-600/20 border border-white/10 hover:border-blue-500 text-white font-bold px-6 py-4 rounded-2xl flex items-center gap-3 transition-all">
+            <a href="#web" className="bg-white/5 hover:bg-blue-600/20 border border-white/10 hover:border-blue-500 text-white font-bold px-6 py-4 rounded-2xl flex items-center gap-3 transition-all">
               <Globe size={20} className="text-blue-400"/> Our Websites
             </a>
             <a href="minecraft://Yukiapi.site:25565" className="bg-white/5 hover:bg-green-600/20 border border-white/10 hover:border-green-500 text-white font-bold px-6 py-4 rounded-2xl flex items-center gap-3 transition-all">
@@ -396,4 +431,4 @@ export default function App() {
       </div>
     </div>
   );
-            }
+}
