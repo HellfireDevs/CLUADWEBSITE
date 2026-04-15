@@ -136,6 +136,7 @@ export default function Deploy() {
     setStep(step - 1);
   };
 
+  // Deploy Handler
   const handleDeploy = async () => {
     if (!formData.use_docker && !formData.start_cmd) {
       setError("PM2 requires a Start Command (e.g., 'python3 main.py')!");
@@ -173,8 +174,9 @@ export default function Deploy() {
       const response = await axios.post(`${API_URL}/api/deploy-new`, payload, { headers });
 
       if (response.data.status === "success") {
-        setSuccess("Deployment Initiated! Redirecting to Dashboard...");
-        setTimeout(() => navigate('/dashboard'), 3000);
+        // 🔥 FIX: Redirect seedha naye Terminal page par jayega instead of Dashboard
+        setSuccess("Deployment Initiated! Redirecting to Terminal...");
+        setTimeout(() => navigate(`/app/${formData.app_name}`), 3000);
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Deployment failed! Backend error.");
@@ -336,7 +338,7 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 2: ENVIRONMENT VARIABLES (MOBILE FIXED) ================= */}
+            {/* ================= STEP 2: ENVIRONMENT VARIABLES ================= */}
             {step === 2 && (
               <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex gap-3">
@@ -356,7 +358,6 @@ export default function Deploy() {
                     <div className="w-10"></div>
                   </div>
 
-                  {/* 🔥 FIX: Mobile pe ab columns toot jayenge (Vertical), aur PC pe horizontal rahenge */}
                   <div className="space-y-4 max-h-[60vh] sm:max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                     {formData.envPairs.map((pair, index) => (
                       <div key={index} className="flex flex-col sm:flex-row gap-2 sm:items-center bg-white/[0.02] sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border border-white/5 sm:border-none group">
@@ -389,7 +390,6 @@ export default function Deploy() {
                     ))}
                   </div>
 
-                  {/* Add Button */}
                   <button 
                     onClick={addEnvPair}
                     className="mt-4 w-full bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-gray-300 font-bold text-sm py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
@@ -478,4 +478,4 @@ export default function Deploy() {
       </div>
     </div>
   );
-}
+                }
