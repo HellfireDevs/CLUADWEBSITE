@@ -23,6 +23,9 @@ export default function Register() {
   
   // 🛡️ CAPTCHA STATE
   const [captchaToken, setCaptchaToken] = useState(null);
+  
+  // 📜 TERMS & PRIVACY STATE
+  const [isAgreed, setIsAgreed] = useState(false);
 
   const [formData, setFormData] = useState({
     username: '',
@@ -41,6 +44,13 @@ export default function Register() {
   // ==========================================
   const handleRegister = async (e) => {
     e.preventDefault();
+    
+    // 🛑 TERMS CHECK
+    if (!isAgreed) {
+      setError("Bhai, pehle Terms aur Privacy Policy toh maan le! 😂");
+      return;
+    }
+
     if (!formData.username || !formData.email || !formData.password) {
       setError("Bhai, saari details bharni padengi!");
       return;
@@ -220,6 +230,24 @@ export default function Register() {
                   </div>
                 </div>
 
+                {/* 📜 PRIVACY POLICY CHECKBOX */}
+                <div className="flex items-start gap-3 px-1 mt-2 mb-2">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="terms"
+                      type="checkbox"
+                      checked={isAgreed}
+                      onChange={(e) => setIsAgreed(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/10 bg-[#0a0a0a] text-blue-600 focus:ring-blue-500 focus:ring-offset-0 transition-all cursor-pointer"
+                    />
+                  </div>
+                  <label htmlFor="terms" className="text-xs text-gray-400 leading-tight cursor-pointer select-none">
+                    I agree to the <Link to="/terms" className="text-blue-400 hover:underline">Terms of Service</Link> and 
+                    <Link to="/privacy" className="text-blue-400 hover:underline ml-1">Privacy Policy</Link>. 
+                    I understand my data will be used for deployment logs.
+                  </label>
+                </div>
+
                 {/* 🛡️ CLOUDFLARE TURNSTILE WIDGET */}
                 <div className="flex justify-center mt-4">
                   <Turnstile
@@ -229,7 +257,7 @@ export default function Register() {
                   />
                 </div>
 
-                <button type="submit" disabled={isLoading} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+                <button type="submit" disabled={isLoading || !isAgreed} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
                   {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Request Access <ArrowRight size={18} /></>}
                 </button>
 
