@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Github, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box } from 'lucide-react';
+import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box } from 'lucide-react';
+import { FaGithub } from 'react-icons/fa'; // Ye naya import add karna hai
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
