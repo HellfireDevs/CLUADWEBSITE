@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Server, User, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { FaGoogle, FaGithub } from 'react-icons/fa'; // 🔥 Naye Icons Import Kiye
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -21,11 +22,35 @@ export default function Login() {
     password: ''
   });
 
+  // ==========================================
+  // 🪄 OAUTH MAGIC (Catch tokens from URL)
+  // ==========================================
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthApiKey = params.get("api_key");
+    const oauthUsername = params.get("username");
+
+    if (oauthApiKey && oauthUsername) {
+      // Data save karo
+      localStorage.setItem("cloud_api_key", oauthApiKey);
+      localStorage.setItem("cloud_username", oauthUsername);
+      
+      // URL se kachra saaf kardo taaki clean lage
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Seedha Dashboard bhej do!
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     if (error) setError(""); // Type karte waqt error hata do
   };
 
+  // ==========================================
+  // 🔐 TRADITIONAL LOGIN
+  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     
@@ -38,7 +63,6 @@ export default function Login() {
     setError("");
 
     try {
-      // .env se backend ka URL uthayega
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       
       const response = await axios.post(`${API_URL}/auth/login`, {
@@ -47,18 +71,45 @@ export default function Login() {
       });
 
       if (response.data.status === "success") {
-        // API Key aur Username browser mein save kar lo
         localStorage.setItem("cloud_api_key", response.data.api_key);
         localStorage.setItem("cloud_username", formData.username);
-        
-        // Seedha Dashboard pe phek do
         navigate('/dashboard');
       }
     } catch (err) {
-      // Backend se jo error aayega wo dikhayenge (e.g. "Incorrect Password")
       setError(err.response?.data?.detail || "Server down hai ya network error hai!");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // 🌐 GOOGLE OAUTH
+  // ==========================================
+  const handleGoogleLogin = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      const response = await axios.get(`${API_URL}/api/google/login`);
+      if (response.data.url) {
+        window.location.href = response.data.url; 
+      }
+    } catch (err) {
+      setError("Google Login connect hone me dikkat aayi.");
+    }
+  };
+
+  // ==========================================
+  // 🐙 GITHUB OAUTH
+  // ==========================================
+  const handleGithubLogin = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      // 🔥 State parameter me AUTH_LOGIN_FLOW bhej rahe hain
+      const response = await axios.get(`${API_URL}/api/github/login?username=AUTH_LOGIN_FLOW`);
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (err) {
+      setError("GitHub Login connect hone me dikkat aayi.");
     }
   };
 
@@ -155,6 +206,40 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        {/* ========================================== */}
+        {/* 🔥 SOCIAL LOGIN BUTTONS */}
+        {/* ========================================== */}
+        <div className="mt-8">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-3 bg-[#111111] text-gray-500 rounded-full font-medium">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-4">
+            {/* Google Button */}
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg"
+            >
+              <FaGoogle size={18} className="text-red-400" /> Google
+            </button>
+            
+            {/* GitHub Button */}
+            <button 
+              type="button"
+              onClick={handleGithubLogin}
+              className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg"
+            >
+              <FaGithub size={18} className="text-gray-200" /> GitHub
+            </button>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="mt-8 text-center border-t border-white/5 pt-6">
