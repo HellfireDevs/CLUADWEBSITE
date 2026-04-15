@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Server, User, Key, Copy, CheckCircle, Shield, LogOut, ArrowLeft, Mail, Clock } from 'lucide-react';
+import { Server, User, Key, Copy, CheckCircle, Shield, LogOut, ArrowLeft, Mail, Crown, CalendarDays, Zap, CreditCard } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import Background from '../components/Background';
 
 // --- ANIMATIONS ---
@@ -16,6 +17,11 @@ export default function Profile() {
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // 🔥 Premium States
+  const [isPremium, setIsPremium] = useState(false);
+  const [daysLeft, setDaysLeft] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 🛡️ AUTH GUARD & LOAD DATA
   useEffect(() => {
@@ -29,7 +35,41 @@ export default function Profile() {
 
     setApiKey(key);
     if (user) setUsername(user);
+    
+    fetchUserProfile(key);
   }, [navigate]);
+
+  // 📡 FETCH USER DATA FROM BACKEND
+  const fetchUserProfile = async (key) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      // Assuming you have an endpoint like /api/profile to get user details
+      const response = await axios.get(`${API_URL}/api/profile`, {
+        headers: { "x-api-key": key }
+      });
+
+      if (response.data.status === "success") {
+        const userData = response.data.data;
+        setIsPremium(userData.is_premium);
+        
+        // Days left calculation
+        if (userData.is_premium && userData.premium_expiry) {
+          const expiryDate = new Date(userData.premium_expiry);
+          const today = new Date();
+          const diffTime = expiryDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          setDaysLeft(diffDays > 0 ? diffDays : 0);
+          
+          // Agar expiry cross ho gayi hai toh
+          if(diffDays <= 0) setIsPremium(false);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch profile:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(apiKey);
@@ -54,7 +94,7 @@ export default function Profile() {
             <Server className="text-purple-500 w-6 h-6" /> NEX<span className="text-purple-500">CLOUD</span>
           </Link>
           <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2">
-            <ArrowLeft size={16} /> Back to Dashboard
+            <ArrowLeft size={16} /> Dashboard
           </Link>
         </div>
       </nav>
@@ -64,20 +104,73 @@ export default function Profile() {
         {/* Header */}
         <div className="mb-10 text-center sm:text-left flex flex-col sm:flex-row items-center gap-6">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }} 
-            className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-4xl font-black text-white shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-[#050505]"
+            className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black text-white shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-[#050505] relative ${isPremium ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'}`}
           >
             {username.charAt(0).toUpperCase()}
+            {isPremium && (
+              <div className="absolute -bottom-2 -right-2 bg-[#050505] rounded-full p-1.5">
+                <Crown size={20} className="text-yellow-400" />
+              </div>
+            )}
           </motion.div>
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white mb-1">Hello, {username}</h1>
+            <h1 className="text-3xl sm:text-4xl font-black text-white mb-1 flex items-center justify-center sm:justify-start gap-3">
+              Hello, {username}
+            </h1>
             <p className="text-gray-400 flex items-center justify-center sm:justify-start gap-2">
-              <Shield size={16} className="text-green-400" /> Admin Clearance Level: Maximum
+              <Shield size={16} className={isPremium ? "text-yellow-400" : "text-green-400"} /> 
+              Clearance: {isPremium ? 'Premium Overlord' : 'Standard User'}
             </p>
           </div>
         </div>
 
         <motion.div variants={{ visible: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="visible" className="space-y-6">
           
+          {/* ================= SUBSCRIPTION / PLAN CARD (NEW 🔥) ================= */}
+          <motion.div variants={fadeInUp} className={`border backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden ${isPremium ? 'bg-yellow-500/[0.02] border-yellow-500/30' : 'bg-white/[0.02] border-white/10'}`}>
+            {isPremium && <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 blur-[50px] -z-10 rounded-full"></div>}
+            
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <CreditCard size={20} className={isPremium ? "text-yellow-400" : "text-purple-400"} /> Active Subscription
+            </h3>
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+              <div>
+                <h4 className="text-2xl font-black text-white flex items-center gap-2">
+                  {isPremium ? <><Crown className="text-yellow-400" size={24}/> NEX Premium Plan</> : 'Free Basic Plan'}
+                </h4>
+                <p className="text-sm text-gray-400 mt-1">
+                  {isPremium ? 'Unlimited deployments, priority servers, no limits.' : 'Limited deployments. Upgrade for production-ready performance.'}
+                </p>
+              </div>
+
+              {/* Days Left UI */}
+              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 min-w-[160px] text-center">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center justify-center gap-1">
+                  <CalendarDays size={12}/> {isPremium ? 'Time Remaining' : 'Status'}
+                </p>
+                {isLoading ? (
+                   <p className="text-gray-400 animate-pulse">Checking...</p>
+                ) : isPremium ? (
+                  <div className="text-white font-medium">
+                    <span className="text-3xl font-black text-yellow-400">{daysLeft}</span> Days
+                  </div>
+                ) : (
+                  <div className="text-red-400 font-bold tracking-widest uppercase">Expired</div>
+                )}
+              </div>
+            </div>
+
+            {/* Upgrade Button for Free Users */}
+            {!isPremium && !isLoading && (
+              <div className="mt-6 pt-6 border-t border-white/5">
+                <button onClick={() => navigate('/payment')} className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] flex items-center justify-center gap-2">
+                  <Zap size={18} /> Upgrade to Premium Now
+                </button>
+              </div>
+            )}
+          </motion.div>
+
           {/* ================= USER DETAILS CARD ================= */}
           <motion.div variants={fadeInUp} className="bg-white/[0.02] border border-white/10 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl">
             <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -107,7 +200,7 @@ export default function Profile() {
               <span className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">Highly Confidential</span>
             </div>
             
-            <p className="text-gray-400 text-sm mb-4">This key grants full access to your cloud deployments. Never share it, not even with the Bhaichara boys.</p>
+            <p className="text-gray-400 text-sm mb-4">This key grants full access to your cloud deployments. Never share it.</p>
             
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-xl p-4 font-mono text-sm tracking-wider overflow-x-auto whitespace-nowrap text-purple-300">
@@ -125,7 +218,7 @@ export default function Profile() {
           </motion.div>
 
           {/* ================= DANGER ZONE ================= */}
-          <motion.div variants={fadeInUp} className="bg-red-500/[0.02] border border-red-500/20 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl mt-10">
+          <motion.div variants={fadeInUp} className="bg-red-500/[0.02] border border-red-500/20 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl mt-10 mb-10">
             <h3 className="text-xl font-bold text-red-400 mb-2">Danger Zone</h3>
             <p className="text-gray-400 text-sm mb-6">Take care of what you click here. Actions are irreversible.</p>
             
