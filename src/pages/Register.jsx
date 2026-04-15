@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, User, Mail, Lock, Key, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile'; // 🛡️ CLOUDFLARE TURNSTILE IMPORT
 import axios from 'axios';
 
 // --- ANIMATIONS ---
@@ -13,11 +15,14 @@ const containerVariants = {
 
 export default function Register() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // Step 1: Details, Step 2: OTP
+  const [step, setStep] = useState(1); 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // 🛡️ CAPTCHA STATE
+  const [captchaToken, setCaptchaToken] = useState(null);
 
   const [formData, setFormData] = useState({
     username: '',
@@ -31,11 +36,19 @@ export default function Register() {
     if (error) setError(""); 
   };
 
-  // STEP 1: Register request bhejna aur OTP mangwana
+  // ==========================================
+  // 1️⃣ TRADITIONAL REGISTER (With Cloudflare Check)
+  // ==========================================
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!formData.username || !formData.email || !formData.password) {
       setError("Bhai, saari details bharni padengi!");
+      return;
+    }
+
+    // 🛡️ CAPTCHA VERIFICATION
+    if (!captchaToken) {
+      setError("Pehle verify kar ki tu robot nahi hai! 🤖");
       return;
     }
 
@@ -48,12 +61,13 @@ export default function Register() {
       const response = await axios.post(`${API_URL}/auth/register`, {
         username: formData.username,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        captcha_token: captchaToken // Backend mein verify karne ke liye
       });
 
       if (response.data.status === "success") {
         setSuccess("OTP has been sent to your email!");
-        setStep(2); // Smoothly OTP form pe switch karo
+        setStep(2); 
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Network error hai bhai!");
@@ -62,7 +76,9 @@ export default function Register() {
     }
   };
 
-  // STEP 2: OTP Verify karna aur Account Create karna
+  // ==========================================
+  // 2️⃣ OTP VERIFICATION
+  // ==========================================
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     if (!formData.otp) {
@@ -76,8 +92,8 @@ export default function Register() {
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       const response = await axios.post(`${API_URL}/auth/verify-otp`, {
-        email: formData.email, // Original email send karni zaroori hai backend ko
-        otp: parseInt(formData.otp) // Backend ko integer chahiye
+        email: formData.email, 
+        otp: parseInt(formData.otp) 
       });
 
       if (response.data.status === "success") {
@@ -93,6 +109,33 @@ export default function Register() {
     }
   };
 
+  // ==========================================
+  // 🌐 SOCIAL LOGINS
+  // ==========================================
+  const handleGoogleLogin = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      const response = await axios.get(`${API_URL}/api/google/login`);
+      if (response.data.url) {
+        window.location.href = response.data.url; 
+      }
+    } catch (err) {
+      setError("Google Login connect hone me dikkat aayi.");
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      const response = await axios.get(`${API_URL}/api/github/login?username=AUTH_LOGIN_FLOW`);
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (err) {
+      setError("GitHub Login connect hone me dikkat aayi.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex items-center justify-center p-4 relative overflow-hidden">
       
@@ -101,7 +144,7 @@ export default function Register() {
 
       <div className="w-full max-w-md relative z-10">
         
-        {/* Header (Always Visible) */}
+        {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-white font-black text-2xl tracking-widest mb-2 hover:scale-105 transition-transform">
             <Server className="text-blue-500 w-8 h-8" /> NEX<span className="text-blue-500">CLOUD</span>
@@ -140,7 +183,7 @@ export default function Register() {
                 key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" 
                 onSubmit={handleRegister} className="space-y-5"
               >
-                {/* Username Input */}
+                {/* Inputs */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username</label>
                   <div className="relative group">
@@ -152,7 +195,6 @@ export default function Register() {
                   </div>
                 </div>
 
-                {/* Email Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Email Address</label>
                   <div className="relative group">
@@ -164,7 +206,6 @@ export default function Register() {
                   </div>
                 </div>
 
-                {/* Password Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Password</label>
                   <div className="relative group">
@@ -179,9 +220,40 @@ export default function Register() {
                   </div>
                 </div>
 
-                <button type="submit" disabled={isLoading} className="w-full mt-8 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+                {/* 🛡️ CLOUDFLARE TURNSTILE WIDGET */}
+                <div className="flex justify-center mt-4">
+                  <Turnstile
+                    siteKey="0x4AAAAAAC9_4Z66YP-JuWh-"
+                    options={{ theme: 'dark' }}
+                    onSuccess={(token) => setCaptchaToken(token)}
+                  />
+                </div>
+
+                <button type="submit" disabled={isLoading} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
                   {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Request Access <ArrowRight size={18} /></>}
                 </button>
+
+                {/* ================= SOCIAL LOGIN BUTTONS ================= */}
+                <div className="mt-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-white/10"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-3 bg-[#111111] text-gray-500 rounded-full font-medium">Or deploy with</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-2 gap-4">
+                    <button type="button" onClick={handleGoogleLogin} className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg">
+                      <FaGoogle size={18} className="text-red-400" /> Google
+                    </button>
+                    <button type="button" onClick={handleGithubLogin} className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg">
+                      <FaGithub size={18} className="text-gray-200" /> GitHub
+                    </button>
+                  </div>
+                </div>
+
               </motion.form>
             )}
 
@@ -231,4 +303,4 @@ export default function Register() {
       </div>
     </div>
   );
-                }
+}
