@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw, RefreshCcw, Box, Cpu, CircleDot, Github } from 'lucide-react';
+// 🔥 FIX: 'Github' ko hata kar 'GitBranch' lagaya hai
+import { Server, ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw, RefreshCcw, Box, Cpu, CircleDot, GitBranch } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
@@ -200,8 +201,9 @@ export default function Terminal() {
 
                   {/* ⚙️ AUTO-DEPLOY TOGGLE */}
                   <div className="flex items-center gap-2 ml-2 sm:ml-0 cursor-pointer" onClick={handleToggleAutoDeploy}>
+                    {/* 🔥 FIX: 'Github' ko hata kar 'GitBranch' lagaya hai */}
                     <span className={`flex items-center gap-1 transition-colors ${autoDeploy ? 'text-blue-400' : 'text-gray-500'}`}>
-                      <Github size={12} /> Auto-Deploy
+                      <GitBranch size={12} /> Auto-Deploy
                     </span>
                     <button 
                       disabled={isToggleLoading}
@@ -263,4 +265,4 @@ export default function Terminal() {
       </div>
     </div>
   );
-      }
+}
