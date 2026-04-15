@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, ArrowLeft, ReceiptText, LifeBuoy, Send, MessageSquare, Clock, CheckCircle, XCircle, AlertCircle, Plus, Shield } from 'lucide-react';
+import { Server, ArrowLeft, ReceiptText, LifeBuoy, Send, MessageSquare, Clock, CheckCircle, XCircle, AlertCircle, Plus, Shield, Paperclip } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
@@ -29,6 +29,7 @@ export default function Support() {
   // Form State for New Ticket
   const [showTicketForm, setShowTicketForm] = useState(false);
   const [ticketForm, setTicketForm] = useState({ subject: "", message: "" });
+  const [screenshot, setScreenshot] = useState(null); // 📸 NAYA: Screenshot ka state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -67,10 +68,24 @@ export default function Support() {
     setIsSubmitting(true);
     const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     
+    // 🚀 FIX: Ab data JSON nahi, balki FormData bankar jayega taaki image bhi ja sake!
+    const formData = new FormData();
+    formData.append("subject", ticketForm.subject);
+    formData.append("message", ticketForm.message);
+    if (screenshot) {
+      formData.append("screenshot", screenshot);
+    }
+    
     try {
-      await axios.post(`${API_URL}/api/support/create`, ticketForm, { headers: { "x-api-key": apiKey } });
+      await axios.post(`${API_URL}/api/support/create`, formData, { 
+        headers: { 
+          "x-api-key": apiKey,
+          "Content-Type": "multipart/form-data" // 🔥 NAYA: File upload ke liye zaroori
+        } 
+      });
       alert("✅ Ticket Created Successfully!");
       setTicketForm({ subject: "", message: "" });
+      setScreenshot(null); // Clear image
       setShowTicketForm(false);
       fetchData(apiKey, 'tickets'); // Refresh list
     } catch (err) {
@@ -200,6 +215,37 @@ export default function Support() {
                             <textarea required value={ticketForm.message} onChange={e => setTicketForm({...ticketForm, message: e.target.value})} placeholder="Describe your issue in detail..."
                               className="w-full bg-[#0a0a0a] border border-white/10 focus:border-blue-500 text-white rounded-xl px-4 py-3 outline-none text-sm transition-all h-32 resize-none" />
                           </div>
+                          
+                          {/* 📸 NAYA: SCREENSHOT UPLOAD UI */}
+                          <div>
+                            <label className="text-xs font-bold text-blue-300 uppercase tracking-widest ml-1 mb-1 block">Attach Screenshot (Optional)</label>
+                            <div className="relative">
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                id="screenshot-upload" 
+                                className="hidden" 
+                                onChange={(e) => setScreenshot(e.target.files[0])} 
+                              />
+                              <label 
+                                htmlFor="screenshot-upload" 
+                                className="w-full bg-[#0a0a0a] border border-white/10 hover:border-blue-500/50 text-gray-400 rounded-xl px-4 py-3 flex items-center gap-2 cursor-pointer transition-all text-sm"
+                              >
+                                <Paperclip size={16} /> 
+                                {screenshot ? <span className="text-white truncate">{screenshot.name}</span> : "Click to upload an image..."}
+                              </label>
+                              {screenshot && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => setScreenshot(null)} 
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 transition-colors"
+                                >
+                                  <XCircle size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
                           <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)] flex items-center gap-2 disabled:opacity-50">
                             {isSubmitting ? "Sending..." : <><Send size={16}/> Submit Ticket</>}
                           </button>
@@ -221,13 +267,20 @@ export default function Support() {
                         <motion.div variants={fadeInUp} key={index} className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden group">
                           {/* Ticket Header */}
                           <div className="p-5 flex justify-between items-start gap-4">
-                            <div>
-                              <div className="flex items-center gap-3 mb-2">
+                            <div className="flex-1">
+                              <div className="flex flex-wrap items-center gap-3 mb-2">
                                 <span className="text-xs text-gray-500 font-mono bg-white/5 px-2 py-1 rounded">{tkt.ticket_id}</span>
                                 <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md border ${getStatusColor(tkt.status)}`}>{tkt.status}</span>
+                                
+                                {/* Agar screenshot attach kiya tha toh chhota indicator */}
+                                {tkt.has_screenshot && (
+                                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-white/10 text-gray-400 flex items-center gap-1 border border-white/5">
+                                    <Paperclip size={10} /> Screenshot Attached
+                                  </span>
+                                )}
                               </div>
                               <h4 className="text-lg font-bold text-white mb-2">{tkt.subject}</h4>
-                              <p className="text-sm text-gray-400 bg-white/5 p-3 rounded-xl border border-white/5">{tkt.message}</p>
+                              <p className="text-sm text-gray-400 bg-white/5 p-3 rounded-xl border border-white/5 whitespace-pre-wrap">{tkt.message}</p>
                             </div>
                             <span className="text-xs text-gray-600 whitespace-nowrap">{new Date(tkt.created_at).toLocaleDateString()}</span>
                           </div>
@@ -239,7 +292,7 @@ export default function Support() {
                               <h5 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Shield size={14}/> Support Team Reply
                               </h5>
-                              <p className="text-sm text-gray-300 italic">{tkt.admin_reply}</p>
+                              <p className="text-sm text-gray-300 italic whitespace-pre-wrap">{tkt.admin_reply}</p>
                             </div>
                           )}
                         </motion.div>
@@ -256,5 +309,4 @@ export default function Support() {
       </div>
     </div>
   );
-  }
-                
+}
