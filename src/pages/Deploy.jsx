@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box } from 'lucide-react';
-import { FaGithub } from 'react-icons/fa'; // Ye naya import add karna hai
+// 🚀 Added Rocket icon here to fix the missing export error
+import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Rocket } from 'lucide-react';
+import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
@@ -28,13 +29,13 @@ export default function Deploy() {
 
   // Form State
   const [formData, setFormData] = useState({
-    app_name: '',       // PM2/Docker Name
-    repo_url: '',       // GitHub Link
-    repo_name: '',      // Auto-extracted
-    folder_path: '',    // e.g. /root/bots/mybot
-    env_content: '',    // Raw .env data
-    use_docker: false,  // Toggle
-    start_cmd: ''       // e.g. python3 main.py
+    app_name: '',       
+    repo_url: '',       
+    repo_name: '',      
+    folder_path: '',    
+    env_content: '',    
+    use_docker: false,  
+    start_cmd: ''       
   });
 
   // Smart GitHub URL Extractor
@@ -95,7 +96,6 @@ export default function Deploy() {
     try {
       const headers = { "x-api-key": API_KEY };
 
-      // Step 1: Agar .env content hai, toh pehle usko inject karo (Optional feature jo humne banaya tha)
       if (formData.env_content.trim() !== '') {
         await axios.post(`${API_URL}/api/inject-env`, {
           folder_path: formData.folder_path,
@@ -103,7 +103,6 @@ export default function Deploy() {
         }, { headers });
       }
 
-      // Step 2: Main Deployment API call karo
       const payload = {
         repo_url: formData.repo_url,
         repo_name: formData.repo_name,
@@ -132,7 +131,6 @@ export default function Deploy() {
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans relative selection:bg-purple-500/30 pb-20">
       <Background />
       
-      {/* 🚀 TOP NAVBAR */}
       <nav className="border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center gap-2 text-white font-black text-xl tracking-widest hover:scale-105 transition-transform">
@@ -146,19 +144,17 @@ export default function Deploy() {
 
       <div className="max-w-4xl mx-auto px-6 mt-10 relative z-10">
         
-        {/* Header & Stepper */}
         <div className="mb-10 text-center sm:text-left">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">Deploy New Application</h1>
           <p className="text-gray-400">Configure your repository, environment, and execution engine.</p>
         </div>
 
-        {/* Stepper UI */}
         <div className="flex items-center justify-between mb-10 relative">
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-white/5 -z-10 rounded-full"></div>
           <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-purple-600 -z-10 rounded-full transition-all duration-500" style={{ width: `${((step - 1) / 2) * 100}%` }}></div>
           
           {[
-            { num: 1, title: "Source", icon: Github },
+            { num: 1, title: "Source", icon: FaGithub }, // 🛠️ FIXED: Used FaGithub here
             { num: 2, title: "Environment", icon: Lock },
             { num: 3, title: "Execution", icon: Cpu }
           ].map((s) => (
@@ -171,7 +167,6 @@ export default function Deploy() {
           ))}
         </div>
 
-        {/* Global Alerts */}
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-bold shadow-lg">
@@ -185,11 +180,9 @@ export default function Deploy() {
           )}
         </AnimatePresence>
 
-        {/* Form Container */}
         <div className="bg-white/[0.02] border border-white/10 backdrop-blur-xl p-6 sm:p-10 rounded-3xl shadow-2xl relative overflow-hidden min-h-[400px]">
           <AnimatePresence mode="wait">
             
-            {/* ================= STEP 1: SOURCE DETAILS ================= */}
             {step === 1 && (
               <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 <div className="space-y-2">
@@ -204,7 +197,8 @@ export default function Deploy() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">GitHub Repository URL</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><Github size={18} /></div>
+                    {/* 🛠️ FIXED: Used FaGithub here */}
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><FaGithub size={18} /></div>
                     <input type="text" name="repo_url" value={formData.repo_url} onChange={handleUrlChange} placeholder="https://github.com/username/repo.git"
                       className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]" />
                   </div>
@@ -222,7 +216,6 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 2: ENVIRONMENT VARIABLES ================= */}
             {step === 2 && (
               <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex gap-3">
@@ -251,11 +244,9 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 3: EXECUTION ENGINE ================= */}
             {step === 3 && (
               <motion.div key="step3" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 
-                {/* Engine Selector */}
                 <div className="grid grid-cols-2 gap-4">
                   <div 
                     onClick={() => setFormData({...formData, use_docker: false})}
@@ -280,7 +271,6 @@ export default function Deploy() {
                   </div>
                 </div>
 
-                {/* Start Command (Only if PM2 is selected) */}
                 <AnimatePresence>
                   {!formData.use_docker && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
@@ -299,7 +289,6 @@ export default function Deploy() {
 
           </AnimatePresence>
 
-          {/* Navigation Buttons (Bottom) */}
           <div className="mt-10 pt-6 border-t border-white/5 flex justify-between">
             <button 
               onClick={handleBack} 
@@ -332,4 +321,3 @@ export default function Deploy() {
     </div>
   );
 }
-
