@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Shield, Cpu, Crown, ArrowRight, Check } from 'lucide-react';
+import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2 } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom'; // 🔥 useLocation IMPORT KIYA
 import axios from 'axios';
 import Background from '../components/Background';
 
@@ -64,123 +64,265 @@ const LiveLogsModal = ({ isOpen, onClose, appName, useDocker }) => {
   );
 };
 
-
 // ==========================================
 // 💸 PAYWALL MODAL (Pricing Plans)
 // ==========================================
 const PaywallModal = ({ isOpen, onClose, navigate }) => {
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
         className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] relative">
-        
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-10"><X size={20}/></button>
-        
         <div className="p-8 text-center border-b border-white/5 bg-gradient-to-b from-purple-900/20 to-transparent">
           <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
             <Crown className="text-purple-400 w-8 h-8" />
           </div>
           <h2 className="text-3xl font-black text-white mb-2">Upgrade to Deploy</h2>
-          <p className="text-gray-400 max-w-lg mx-auto">You need an active subscription to deploy applications. Choose a plan that fits your high-performance needs.</p>
+          <p className="text-gray-400 max-w-lg mx-auto">You need an active subscription to deploy applications.</p>
         </div>
-
-        <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#050505]">
-          {/* PLAN 1: PRO (₹49) */}
-          <div className="bg-white/[0.02] border border-white/10 hover:border-purple-500/50 rounded-2xl p-6 transition-all flex flex-col relative overflow-hidden group">
-            <h3 className="text-xl font-bold text-white mb-1">NEX Pro</h3>
-            <div className="text-gray-400 text-sm mb-4">Perfect for standard bots</div>
-            <div className="text-4xl font-black text-white mb-6">₹49<span className="text-lg text-gray-500 font-normal">/mo</span></div>
-            
-            <div className="space-y-3 mb-8 flex-1">
-              {['8GB RAM Dedicated', 'No Downtime (24/7)', 'High Speed Network', 'Standard Support', '5 Active Deployments'].map((feature, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm text-gray-300">
-                  <Check size={16} className="text-purple-500" /> {feature}
-                </div>
-              ))}
-            </div>
-            
-            <button onClick={() => navigate('/payment')} className="w-full bg-white/5 hover:bg-purple-600 text-white font-bold py-3 rounded-xl transition-all group-hover:bg-purple-600">
-              Get Pro
+        <div className="p-6 sm:p-8 flex justify-center bg-[#050505]">
+            <button onClick={() => navigate('/payment')} className="w-full max-w-md bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
+              View Premium Plans
             </button>
-          </div>
-
-          {/* PLAN 2: PRO ULTRA (₹89) */}
-          <div className="bg-purple-900/10 border border-purple-500/50 rounded-2xl p-6 transition-all flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500"></div>
-            <div className="absolute top-4 right-4 bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full animate-pulse">
-              Most Popular
-            </div>
-            
-            <h3 className="text-xl font-bold text-white mb-1">Pro Ultra <Zap size={18} className="inline text-yellow-400 mb-1"/></h3>
-            <div className="text-purple-300 text-sm mb-4">For heavy production workloads</div>
-            <div className="text-4xl font-black text-white mb-6">₹89<span className="text-lg text-gray-500 font-normal">/mo</span></div>
-            
-            <div className="space-y-3 mb-8 flex-1">
-              {['16GB RAM Dedicated', '0% Downtime Guarantee', 'Ultra-Fast 10Gbps Network', 'DDoS Protection', 'Priority Support (24/7)', 'Unlimited Deployments'].map((feature, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm text-gray-300">
-                  <Check size={16} className="text-purple-400" /> {feature}
-                </div>
-              ))}
-            </div>
-            
-            <button onClick={() => navigate('/payment')} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
-              Get Pro Ultra
-            </button>
-          </div>
         </div>
       </motion.div>
     </div>
   );
 };
 
+// ==========================================
+// ⚙️ MANAGE APP MODAL (Env, Repo, Delete)
+// ==========================================
+const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
+  const [activeTab, setActiveTab] = useState('env');
+  const [loading, setLoading] = useState(false);
+
+  // Form States
+  const [envText, setEnvText] = useState("");
+  const [repoDetails, setRepoDetails] = useState({ url: "", name: "", cmd: "" });
+
+  useEffect(() => {
+    if (app) {
+      setRepoDetails({ url: app.repo_url || "", name: app.repo_name || "", cmd: app.start_cmd || "" });
+      if (app.env_vars) {
+        const text = Object.entries(app.env_vars).map(([k, v]) => `${k}=${v}`).join("\n");
+        setEnvText(text);
+      } else {
+        setEnvText("");
+      }
+    }
+  }, [app]);
+
+  if (!isOpen || !app) return null;
+  const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  const handleSaveEnv = async () => {
+    setLoading(true);
+    try {
+      const envObj = {};
+      envText.split('\n').forEach(line => {
+        const match = line.match(/^([^=]+)=(.*)$/);
+        if (match) envObj[match[1].trim()] = match[2].trim();
+      });
+
+      await axios.post(`${API_URL}/api/edit-env`, {
+        app_name: app.pm2_name,
+        env_vars: envObj
+      }, { headers: { "x-api-key": apiKey } });
+
+      alert("✅ Environment Variables Saved! Restart the app to apply changes.");
+      refreshDashboard();
+    } catch (err) {
+      alert("❌ Failed to save Env: " + (err.response?.data?.detail || err.message));
+    }
+    setLoading(false);
+  };
+
+  const handleSaveRepo = async () => {
+    setLoading(true);
+    try {
+      await axios.post(`${API_URL}/api/edit-repo`, {
+        app_name: app.pm2_name,
+        new_repo_url: repoDetails.url,
+        new_repo_name: repoDetails.name,
+        new_start_cmd: repoDetails.cmd
+      }, { headers: { "x-api-key": apiKey } });
+
+      alert("✅ Repository settings updated! Reset the app to clone new repo.");
+      refreshDashboard();
+    } catch (err) {
+      alert("❌ Failed to update Repo: " + (err.response?.data?.detail || err.message));
+    }
+    setLoading(false);
+  };
+
+  const handleDelete = async () => {
+    const confirmDelete = window.confirm(`⚠️ DANGER: Are you sure you want to permanently delete ${app.pm2_name}? This cannot be undone.`);
+    if (!confirmDelete) return;
+
+    setLoading(true);
+    try {
+      await axios.post(`${API_URL}/api/delete-bot`, {
+        app_name: app.pm2_name
+      }, { headers: { "x-api-key": apiKey } });
+
+      alert("🗑️ App successfully deleted.");
+      onClose();
+      refreshDashboard();
+    } catch (err) {
+      alert("❌ Failed to delete app: " + (err.response?.data?.detail || err.message));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-[#0a0a0a] border border-white/10 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        
+        <div className="flex justify-between items-center p-5 border-b border-white/10 bg-black/50">
+          <div>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2"><Settings size={20} className="text-purple-400"/> Manage {app.pm2_name}</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 bg-white/5 rounded-lg">
+            <X size={20}/>
+          </button>
+        </div>
+
+        <div className="flex border-b border-white/10 bg-black/20">
+          <button onClick={() => setActiveTab('env')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'env' ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <FileCode2 size={16}/> Environment Variables
+          </button>
+          <button onClick={() => setActiveTab('repo')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'repo' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <FolderGit2 size={16}/> Source Config
+          </button>
+          <button onClick={() => setActiveTab('danger')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'danger' ? 'text-red-400 border-b-2 border-red-400 bg-red-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <AlertTriangle size={16}/> Danger Zone
+          </button>
+        </div>
+
+        <div className="p-6 bg-[#050505]">
+          {activeTab === 'env' && (
+            <div className="animate-in fade-in duration-200">
+              <p className="text-sm text-gray-400 mb-4">Add your environment variables here. Use <code className="bg-white/10 px-1 rounded text-gray-200">KEY=VALUE</code> format (one per line).</p>
+              <textarea 
+                value={envText}
+                onChange={(e) => setEnvText(e.target.value)}
+                placeholder="BOT_TOKEN=123456789:ABCdefGHI&#10;MONGO_URL=mongodb+srv://..."
+                className="w-full h-48 bg-black border border-white/10 rounded-xl p-4 text-sm font-mono text-green-400 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-gray-600 mb-4"
+              />
+              <button onClick={handleSaveEnv} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50">
+                <Save size={18}/> {loading ? "Saving..." : "Save .env file"}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'repo' && (
+            <div className="animate-in fade-in duration-200 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">GitHub Repository URL</label>
+                <input type="text" value={repoDetails.url} onChange={(e) => setRepoDetails({...repoDetails, url: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Repo Name</label>
+                  <input type="text" value={repoDetails.name} onChange={(e) => setRepoDetails({...repoDetails, name: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Start Command</label>
+                  <input type="text" value={repoDetails.cmd} onChange={(e) => setRepoDetails({...repoDetails, cmd: e.target.value})} placeholder="e.g. python3 main.py" className="w-full bg-black border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              <button onClick={handleSaveRepo} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 transition-all disabled:opacity-50">
+                <Save size={18}/> {loading ? "Updating..." : "Update Config"}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'danger' && (
+            <div className="animate-in fade-in duration-200 text-center py-6">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                <Trash2 className="text-red-500 w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Delete Application</h3>
+              <p className="text-red-400/80 text-sm max-w-sm mx-auto mb-6">
+                This action will permanently delete this application, its environment variables, and all code from the server. This cannot be undone.
+              </p>
+              <button onClick={handleDelete} disabled={loading} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50">
+                <AlertTriangle size={18}/> {loading ? "Deleting..." : "Yes, Delete this App"}
+              </button>
+            </div>
+          )}
+
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 // ==========================================
 // 🎛️ MAIN DASHBOARD COMPONENT
 // ==========================================
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation(); // 🔥 URL BYPASS CATCHER
+  
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState("Commander");
-  const [isPremium, setIsPremium] = useState(false); // 🔥 Premium Status State
+  const [apiKey, setApiKey] = useState("");
+  
+  // 🔥 GLITCH FIX: Initial state localStorage se uthayega
+  const [isPremium, setIsPremium] = useState(localStorage.getItem("cloud_is_premium") === "true");
 
   // Modals State
   const [isLogsOpen, setIsLogsOpen] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [isManageOpen, setIsManageOpen] = useState(false); 
   const [selectedApp, setSelectedApp] = useState(null);
-  const [isPaywallOpen, setIsPaywallOpen] = useState(false); // 🔥 Paywall State
 
   useEffect(() => {
-    const apiKey = localStorage.getItem("cloud_api_key");
+    const key = localStorage.getItem("cloud_api_key");
     const storedUser = localStorage.getItem("cloud_username");
     
-    if (!apiKey) {
+    if (!key) {
       navigate('/login'); 
       return;
     }
 
-    if (storedUser) setUsername(storedUser);
-    fetchDashboardData(apiKey);
-  }, [navigate]);
+    // 🔥 URL BYPASS CHECK: Agar /deploy se dhakka kha ke wapas aaya hai
+    if (location.state?.showPaywall) {
+      setIsPaywallOpen(true);
+      window.history.replaceState({}, document.title); // History clean kar do
+    }
 
-  const fetchDashboardData = async (apiKey) => {
+    setApiKey(key);
+    if (storedUser) setUsername(storedUser);
+    fetchDashboardData(key);
+  }, [navigate, location]);
+
+  const fetchDashboardData = async (key) => {
     setIsLoading(true);
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       const response = await axios.get(`${API_URL}/api/services`, {
-        headers: { "x-api-key": apiKey } 
+        headers: { "x-api-key": key } 
       });
 
       if (response.data.status === "success") {
         setServices(response.data.data || []);
-        // 🔥 Assume backend returns is_premium status. Agar nahi bhejta, toh false manega.
-        setIsPremium(response.data.is_premium || false); 
+        
+        // 🔥 PREVENT FLICKER: Status update aur save
+        const premiumStatus = response.data.is_premium || false;
+        setIsPremium(premiumStatus);
+        localStorage.setItem("cloud_is_premium", premiumStatus);
       }
     } catch (err) {
       console.error("Dashboard Fetch Error:", err);
       setServices([]); 
       setIsPremium(false);
+      localStorage.setItem("cloud_is_premium", "false");
     } finally {
       setIsLoading(false);
     }
@@ -189,19 +331,29 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("cloud_api_key");
     localStorage.removeItem("cloud_username");
+    localStorage.removeItem("cloud_is_premium"); // Clear on logout
     navigate('/login');
   };
 
-  const openLogs = (app) => {
-    setSelectedApp(app);
-    setIsLogsOpen(true);
-  };
-
-  // 🔥 DEPLOY BUTTON CLICK HANDLER
+  // Button Actions
+  const openLogs = (app) => { setSelectedApp(app); setIsLogsOpen(true); };
+  const openManage = (app) => { setSelectedApp(app); setIsManageOpen(true); };
+  
   const handleDeployClick = (e) => {
     if (!isPremium) {
-      e.preventDefault(); // Stop navigation to /deploy
-      setIsPaywallOpen(true); // Open Pricing Modal
+      e.preventDefault(); 
+      setIsPaywallOpen(true); 
+    }
+  };
+
+  const triggerAction = async (appName, actionType) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+      await axios.post(`${API_URL}/api/action`, { app_name: appName, action: actionType }, { headers: { "x-api-key": apiKey } });
+      alert(`✅ Action '${actionType}' triggered successfully for ${appName}!`);
+      fetchDashboardData(apiKey);
+    } catch (err) {
+      alert(`❌ Failed to ${actionType}: ` + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -237,12 +389,7 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm">Manage your deployed bots and containers.</p>
           </div>
           
-          {/* 🔥 Deploy Button with Lock Logic */}
-          <Link 
-            to="/deploy" 
-            onClick={handleDeployClick}
-            className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]"
-          >
+          <Link to="/deploy" onClick={handleDeployClick} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]">
             {isPremium ? <Plus size={18} /> : <Crown size={18} className="text-yellow-300" />} 
             Deploy New App
           </Link>
@@ -261,20 +408,15 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-white mb-2">No Applications Found</h3>
             <p className="text-gray-400 max-w-md mx-auto mb-8">You haven't deployed any code yet. Connect a GitHub repository to get started.</p>
             
-            {/* Same Lock logic on empty state button */}
-            <Link 
-              to="/deploy" 
-              onClick={handleDeployClick}
-              className="bg-white/10 hover:bg-white/20 text-white font-bold px-8 py-3 rounded-xl transition-all border border-white/10 inline-flex items-center gap-2"
-            >
+            <Link to="/deploy" onClick={handleDeployClick} className="bg-white/10 hover:bg-white/20 text-white font-bold px-8 py-3 rounded-xl transition-all border border-white/10 inline-flex items-center gap-2">
                {isPremium ? "Create First Deployment" : <><Crown size={18} className="text-yellow-400"/> Upgrade to Deploy</>}
             </Link>
           </motion.div>
         ) : (
           <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((app) => (
-              <motion.div key={app.id} variants={fadeUp} className="bg-white/[0.03] border border-white/10 hover:border-purple-500/50 rounded-3xl p-6 transition-all group flex flex-col h-full backdrop-blur-sm shadow-xl hover:shadow-[0_0_30px_rgba(168,85,247,0.1)]">
-                {/* Same App Card code as before */}
+              <motion.div key={app.id || app.pm2_name} variants={fadeUp} className="bg-white/[0.03] border border-white/10 hover:border-purple-500/50 rounded-3xl p-6 transition-all group flex flex-col h-full backdrop-blur-sm shadow-xl hover:shadow-[0_0_30px_rgba(168,85,247,0.1)]">
+                
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold text-white mb-1 group-hover:text-purple-400 transition-colors">{app.pm2_name}</h3>
@@ -296,14 +438,15 @@ export default function Dashboard() {
 
                 <div className="mt-auto pt-5 border-t border-white/5 flex items-center justify-between gap-2">
                   <div className="flex gap-2">
-                    <button title="Restart Process" className="p-2.5 bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-400 rounded-lg transition-colors border border-transparent hover:border-purple-500/30">
+                    <button onClick={() => triggerAction(app.pm2_name, 'restart')} title="Restart Process" className="p-2.5 bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-400 rounded-lg transition-colors border border-transparent hover:border-purple-500/30">
                       <RotateCw size={16} />
                     </button>
                     <button onClick={() => openLogs(app)} title="View Live Logs" className="p-2.5 bg-white/5 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-500/30">
                       <Terminal size={16} />
                     </button>
                   </div>
-                  <button className="text-xs font-bold text-gray-400 hover:text-white flex items-center gap-1 px-3 py-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
+                  
+                  <button onClick={() => openManage(app)} className="text-xs font-bold text-gray-400 hover:text-white flex items-center gap-1 px-3 py-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
                     <Settings size={14} /> Manage
                   </button>
                 </div>
@@ -313,15 +456,23 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 📡 INJECTING MODALS HERE */}
       <AnimatePresence>
         {isLogsOpen && selectedApp && (
           <LiveLogsModal isOpen={isLogsOpen} onClose={() => setIsLogsOpen(false)} appName={selectedApp.pm2_name} useDocker={selectedApp.use_docker || false} />
         )}
         
-        {/* 🔥 NEW PAYWALL MODAL */}
         {isPaywallOpen && (
           <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} navigate={navigate} />
+        )}
+
+        {isManageOpen && selectedApp && (
+          <ManageAppModal 
+            isOpen={isManageOpen} 
+            onClose={() => setIsManageOpen(false)} 
+            app={selectedApp} 
+            apiKey={apiKey}
+            refreshDashboard={() => fetchDashboardData(apiKey)}
+          />
         )}
       </AnimatePresence>
     </div>
