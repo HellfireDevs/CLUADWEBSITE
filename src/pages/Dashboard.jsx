@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Server, Activity, Terminal, Play, RotateCw, Plus, Box, LogOut, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Server, Activity, Terminal, Play, RotateCw, Plus, Box, LogOut, Settings, X } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -17,11 +17,88 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.3 } }
 };
 
+// ==========================================
+// 📡 LIVE LOGS MODAL (WebSockets)
+// ==========================================
+const LiveLogsModal = ({ isOpen, onClose, appName, useDocker }) => {
+  const [logs, setLogs] = useState([]);
+  const logsEndRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !appName) return;
+    
+    setLogs([]); // Reset purane logs jab naya modal khule
+    
+    // API URL se HTTP hata kar WS (WebSocket) lagana
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws'); 
+    
+    // Backend ke logs.py wale endpoint pe connect kar rahe hain
+    const ws = new WebSocket(`${wsBaseUrl}/ws/stream/${appName}?use_docker=${useDocker}`);
+
+    ws.onmessage = (event) => {
+      setLogs((prev) => [...prev, event.data]);
+    };
+
+    ws.onerror = () => {
+      setLogs((prev) => [...prev, "❌ WebSocket Connection Error. Backend zinda hai?"]);
+    };
+
+    return () => {
+      ws.close(); // Modal band hote hi connection cut! (RAM bachega)
+    };
+  }, [isOpen, appName, useDocker]);
+
+  // Auto-scroll to bottom of logs
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }} 
+        animate={{ opacity: 1, scale: 1 }} 
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[70vh] sm:h-[80vh]"
+      >
+        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-black/50">
+          <div className="flex items-center gap-2 text-white font-bold tracking-widest">
+            <Terminal size={18} className="text-purple-400"/> {appName.toUpperCase()} // LIVE STREAM
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 bg-white/5 rounded-lg hover:bg-white/10">
+            <X size={20}/>
+          </button>
+        </div>
+        <div className="p-4 overflow-y-auto flex-1 font-mono text-xs sm:text-sm text-green-400 bg-black tracking-wide leading-relaxed">
+          {logs.length === 0 ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="animate-pulse">Connecting to live stream pipe...</span>
+            </div>
+          ) : (
+            logs.map((log, i) => <div key={i}>{log}</div>)
+          )}
+          <div ref={logsEndRef} /> {/* Dummy div auto scroll ke liye */}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState("Commander");
+
+  // Logs Modal State
+  const [isLogsOpen, setIsLogsOpen] = useState(false);
+  const [selectedApp, setSelectedApp] = useState(null);
 
   // 🛡️ AUTH GUARD & DATA FETCHING
   useEffect(() => {
@@ -51,11 +128,8 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Dashboard Fetch Error:", err);
-      // Dummy data for testing UI
-      setServices([
-        { id: 1, pm2_name: "yuki_music", repo_name: "YUKIMUSICS", type: "PM2", status: "online" },
-        { id: 2, pm2_name: "nex_core", repo_name: "NEX-Security", type: "Docker", status: "offline" }
-      ]);
+      // 🛠️ FIXED: Dummy data hata diya gaya hai. Ab API fail pe empty list aayegi.
+      setServices([]); 
     } finally {
       setIsLoading(false);
     }
@@ -65,6 +139,11 @@ export default function Dashboard() {
     localStorage.removeItem("cloud_api_key");
     localStorage.removeItem("cloud_username");
     navigate('/login');
+  };
+
+  const openLogs = (app) => {
+    setSelectedApp(app);
+    setIsLogsOpen(true);
   };
 
   return (
@@ -105,6 +184,7 @@ export default function Dashboard() {
           </Link>
         </div>
 
+        {/* Apps Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
@@ -142,7 +222,7 @@ export default function Dashboard() {
 
                 <div className="mb-8">
                   <span className="text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-gray-300 px-3 py-1 rounded-md">
-                    Engine: {app.type || 'PM2'}
+                    Engine: {app.use_docker ? 'Docker' : 'PM2'}
                   </span>
                 </div>
 
@@ -151,7 +231,8 @@ export default function Dashboard() {
                     <button title="Restart Process" className="p-2.5 bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-400 rounded-lg transition-colors border border-transparent hover:border-purple-500/30">
                       <RotateCw size={16} />
                     </button>
-                    <button title="View Live Logs" className="p-2.5 bg-white/5 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-500/30">
+                    {/* 🚀 LOGS BUTTON CONNECTED HERE */}
+                    <button onClick={() => openLogs(app)} title="View Live Logs" className="p-2.5 bg-white/5 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-500/30">
                       <Terminal size={16} />
                     </button>
                   </div>
@@ -165,6 +246,19 @@ export default function Dashboard() {
           </motion.div>
         )}
       </div>
+
+      {/* 📡 INJECTING THE MODAL HERE */}
+      <AnimatePresence>
+        {isLogsOpen && selectedApp && (
+          <LiveLogsModal 
+            isOpen={isLogsOpen} 
+            onClose={() => setIsLogsOpen(false)} 
+            appName={selectedApp.pm2_name} 
+            useDocker={selectedApp.use_docker || false} 
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
