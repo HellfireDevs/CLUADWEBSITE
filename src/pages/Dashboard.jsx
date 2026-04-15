@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🔥 FIX: 'MoreVertical' import kiya 3-dot menu ke liye
 import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2, MoreVertical } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -71,20 +70,21 @@ const LiveLogsModal = ({ isOpen, onClose, appName, useDocker }) => {
 const PaywallModal = ({ isOpen, onClose, navigate }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 pb-20 sm:pb-4">
       <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-        className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] relative">
+        className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-10"><X size={20}/></button>
         <div className="p-8 text-center border-b border-white/5 bg-gradient-to-b from-purple-900/20 to-transparent">
           <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
             <Crown className="text-purple-400 w-8 h-8" />
           </div>
-          <h2 className="text-3xl font-black text-white mb-2">Upgrade to Deploy</h2>
-          <p className="text-gray-400 max-w-lg mx-auto">You need an active subscription to deploy applications.</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">Upgrade to Deploy</h2>
+          <p className="text-gray-400 text-sm sm:text-base max-w-sm mx-auto">You need an active Premium subscription to deploy applications to the cloud.</p>
         </div>
-        <div className="p-6 sm:p-8 flex justify-center bg-[#050505]">
-            <button onClick={() => navigate('/payment')} className="w-full max-w-md bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
-              View Premium Plans
+        {/* 🔥 FIX: Mobile par spacing badha di hai taaki button na chhupe */}
+        <div className="p-6 sm:p-8 flex justify-center bg-[#050505] pb-10 sm:pb-8">
+            <button onClick={() => navigate('/payment')} className="w-full max-w-md bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] flex justify-center items-center gap-2">
+              View Premium Plans <Zap size={18}/>
             </button>
         </div>
       </motion.div>
@@ -98,6 +98,7 @@ const PaywallModal = ({ isOpen, onClose, navigate }) => {
 const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
   const [activeTab, setActiveTab] = useState('env');
   const [loading, setLoading] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // 🔥 NEW: Gande alert box ki jagah sexy animation ke liye
 
   const [envText, setEnvText] = useState("");
   const [repoDetails, setRepoDetails] = useState({ url: "", name: "", cmd: "" });
@@ -111,6 +112,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
       } else {
         setEnvText("");
       }
+      setIsConfirmingDelete(false); // Modal khulte hi reset kar do
     }
   }, [app]);
 
@@ -157,10 +159,8 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
     setLoading(false);
   };
 
+  // 🔥 FIX: Beautiful Delete Function without annoying browser alerts
   const handleDelete = async () => {
-    const confirmDelete = window.confirm(`⚠️ DANGER: Are you sure you want to permanently delete ${app.pm2_name}? This cannot be undone.`);
-    if (!confirmDelete) return;
-
     setLoading(true);
     try {
       await axios.post(`${API_URL}/api/delete-bot`, {
@@ -172,6 +172,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
       refreshDashboard();
     } catch (err) {
       alert("❌ Failed to delete app: " + (err.response?.data?.detail || err.message));
+      setIsConfirmingDelete(false);
     }
     setLoading(false);
   };
@@ -202,7 +203,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
           </button>
         </div>
 
-        <div className="p-6 bg-[#050505]">
+        <div className="p-6 bg-[#050505] min-h-[300px]">
           {activeTab === 'env' && (
             <div className="animate-in fade-in duration-200">
               <p className="text-sm text-gray-400 mb-4">Add your environment variables here. Use <code className="bg-white/10 px-1 rounded text-gray-200">KEY=VALUE</code> format (one per line).</p>
@@ -213,7 +214,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
                 className="w-full h-48 bg-black border border-white/10 rounded-xl p-4 text-sm font-mono text-green-400 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-gray-600 mb-4"
               />
               <button onClick={handleSaveEnv} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50">
-                <Save size={18}/> {loading ? "Saving..." : "Save .env file"}
+                {loading ? <RotateCw className="animate-spin" size={18}/> : <Save size={18}/>} {loading ? "Saving..." : "Save .env file"}
               </button>
             </div>
           )}
@@ -235,23 +236,41 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
                 </div>
               </div>
               <button onClick={handleSaveRepo} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-2 flex justify-center items-center gap-2 transition-all disabled:opacity-50">
-                <Save size={18}/> {loading ? "Updating..." : "Update Config"}
+                 {loading ? <RotateCw className="animate-spin" size={18}/> : <Save size={18}/>} {loading ? "Updating..." : "Update Config"}
               </button>
             </div>
           )}
 
+          {/* 🔥 FIX: New Beautiful Danger Zone UI */}
           {activeTab === 'danger' && (
-            <div className="animate-in fade-in duration-200 text-center py-6">
+            <div className="animate-in fade-in duration-200 text-center py-4">
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-                <Trash2 className="text-red-500 w-8 h-8" />
+                <Trash2 className={`text-red-500 w-8 h-8 ${loading ? 'animate-bounce' : ''}`} />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Delete Application</h3>
               <p className="text-red-400/80 text-sm max-w-sm mx-auto mb-6">
                 This action will permanently delete this application, its environment variables, and all code from the server. This cannot be undone.
               </p>
-              <button onClick={handleDelete} disabled={loading} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50">
-                <AlertTriangle size={18}/> {loading ? "Deleting..." : "Yes, Delete this App"}
-              </button>
+              
+              {!isConfirmingDelete ? (
+                <button onClick={() => setIsConfirmingDelete(true)} disabled={loading} className="w-full bg-red-600/10 hover:bg-red-600 border border-red-500/30 text-red-400 hover:text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all shadow-[0_0_20px_rgba(220,38,38,0.1)] disabled:opacity-50">
+                  <AlertTriangle size={18}/> Yes, I want to delete this App
+                </button>
+              ) : (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-500/10 border border-red-500/30 p-5 rounded-2xl text-left">
+                  <p className="text-white font-bold mb-1 flex items-center gap-2"><AlertTriangle size={16} className="text-red-500"/> Are you absolutely sure?</p>
+                  <p className="text-sm text-red-300/70 mb-4">Please confirm to trigger the deletion protocol.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsConfirmingDelete(false)} disabled={loading} className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 rounded-lg transition-all border border-white/10">
+                      Cancel
+                    </button>
+                    <button onClick={handleDelete} disabled={loading} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg transition-all flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(220,38,38,0.4)] disabled:opacity-50">
+                      {loading ? <RotateCw size={16} className="animate-spin" /> : <Trash2 size={16} />} 
+                      {loading ? "Deleting..." : "Confirm Delete"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
             </div>
           )}
 
@@ -363,7 +382,6 @@ export default function Dashboard() {
           </Link>
           
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* 🔥 MOBILE & PC DONO PE SINK HUA PROFILE AVATAR */}
             <Link to="/profile" className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-colors bg-white/5 sm:bg-transparent px-2 sm:px-0 py-1.5 sm:py-0 rounded-full sm:rounded-none hover:bg-white/10 sm:hover:bg-transparent">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 relative shadow-lg border border-[#050505]">
                 {username.charAt(0).toUpperCase()}
@@ -376,7 +394,6 @@ export default function Dashboard() {
               <span className="hidden sm:inline text-white mr-1">{username}</span>
             </Link>
 
-            {/* 🔥 NAYA 3-DOT MENU FOR SUPPORT/BILLING */}
             <Link to="/support" className="text-gray-500 hover:text-white transition-colors p-2 bg-white/5 rounded-xl hover:bg-white/10" title="Billing & Support">
               <MoreVertical size={18} />
             </Link>
@@ -482,4 +499,4 @@ export default function Dashboard() {
       </AnimatePresence>
     </div>
   );
-}
+                }
