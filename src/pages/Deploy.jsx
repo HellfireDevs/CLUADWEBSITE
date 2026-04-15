@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🛠️ FIX 1: Yahan se 'Github' ko hata diya hai
-import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket } from 'lucide-react';
-// 🛠️ FIX 2: Naya FaGithub import kar liya
+// 🛠️ FIX: Trash2 import kiya Delete button ke liye
+import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket, Trash2, Plus } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -33,7 +32,7 @@ export default function Deploy() {
     app_name: '',       
     repo_url: '',       
     repo_name: '',      
-    env_content: '',    
+    envPairs: [{ key: '', value: '' }], // 🔥 NEW: Dynamic Array for ENV Variables
     use_docker: false,  
     start_cmd: ''       
   });
@@ -108,6 +107,23 @@ export default function Deploy() {
     if (error) setError("");
   };
 
+  // 🔥 ENV VARIABLE HANDLERS (Add, Remove, Edit)
+  const handleEnvChange = (index, field, value) => {
+    const newPairs = [...formData.envPairs];
+    newPairs[index][field] = value;
+    setFormData({ ...formData, envPairs: newPairs });
+  };
+
+  const addEnvPair = () => {
+    setFormData({ ...formData, envPairs: [...formData.envPairs, { key: '', value: '' }] });
+  };
+
+  const removeEnvPair = (index) => {
+    const newPairs = formData.envPairs.filter((_, i) => i !== index);
+    setFormData({ ...formData, envPairs: newPairs });
+  };
+
+  // Nav Handlers
   const handleNext = () => {
     if (step === 1 && (!formData.app_name || !formData.repo_url)) {
       setError("Please provide an App Name and a Repository URL!");
@@ -122,6 +138,7 @@ export default function Deploy() {
     setStep(step - 1);
   };
 
+  // Deploy Handler
   const handleDeploy = async () => {
     if (!formData.use_docker && !formData.start_cmd) {
       setError("PM2 requires a Start Command (e.g., 'python3 main.py')!");
@@ -136,10 +153,16 @@ export default function Deploy() {
     try {
       const headers = { "x-api-key": API_KEY };
 
-      if (formData.env_content.trim() !== '') {
+      // 🔥 PREPARE ENV STRING FROM ARRAY (Backend ko pehle jaisa data hi milega)
+      const generatedEnvContent = formData.envPairs
+        .filter(pair => pair.key.trim() !== '')
+        .map(pair => `${pair.key.trim()}=${pair.value.trim()}`)
+        .join('\n');
+
+      if (generatedEnvContent.trim() !== '') {
         await axios.post(`${API_URL}/api/inject-env`, {
           app_name: formData.app_name, 
-          env_content: formData.env_content
+          env_content: generatedEnvContent
         }, { headers }).catch(err => console.log("Env injection skip/fail", err));
       }
 
@@ -196,7 +219,6 @@ export default function Deploy() {
           <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-purple-600 -z-10 rounded-full transition-all duration-500" style={{ width: `${((step - 1) / 2) * 100}%` }}></div>
           
           {[
-            // 🛠️ FIX 3: Yahan icon ko FaGithub kar diya
             { num: 1, title: "Source", icon: FaGithub },
             { num: 2, title: "Environment", icon: Lock },
             { num: 3, title: "Execution", icon: Cpu }
@@ -244,7 +266,6 @@ export default function Deploy() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Selected Repository URL</label>
                   <div className="relative">
-                    {/* 🛠️ FIX 4: Yahan FaGithub kar diya */}
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><FaGithub size={18} /></div>
                     <input type="text" name="repo_url" value={formData.repo_url} onChange={handleUrlChange} placeholder="Enter manually or select from GitHub below"
                       className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]" />
@@ -254,7 +275,6 @@ export default function Deploy() {
                 {/* 🐙 GITHUB INTEGRATION UI */}
                 <div className="mt-8 pt-6 border-t border-white/5">
                   <div className="flex justify-between items-center mb-4">
-                    {/* 🛠️ FIX 5: Yahan FaGithub kar diya */}
                     <h3 className="text-sm font-bold text-white flex items-center gap-2"><FaGithub size={18}/> Import from GitHub</h3>
                     {!isGithubConnected && (
                       <button onClick={handleGithubConnect} className="bg-white/10 hover:bg-white/20 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2">
@@ -267,7 +287,6 @@ export default function Deploy() {
                     <div className="flex justify-center items-center py-8"><Loader2 className="animate-spin text-purple-500 w-8 h-8" /></div>
                   ) : !isGithubConnected ? (
                     <div className="bg-[#0a0a0a] border border-white/5 rounded-xl p-6 text-center">
-                      {/* 🛠️ FIX 6: Yahan FaGithub kar diya */}
                       <FaGithub size={40} className="mx-auto text-gray-600 mb-3" />
                       <p className="text-sm text-gray-400 mb-4">Connect your GitHub to easily import public and private repositories.</p>
                       <button onClick={handleGithubConnect} className="bg-[#24292e] hover:bg-[#2f363d] text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg">
@@ -321,31 +340,63 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 2: ENVIRONMENT VARIABLES ================= */}
+            {/* ================= STEP 2: ENVIRONMENT VARIABLES (DYNAMIC BOXES) ================= */}
             {step === 2 && (
               <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex gap-3">
                   <Lock className="text-purple-400 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-white font-bold text-sm">Secure Environment Injector</h4>
-                    <p className="text-gray-400 text-xs mt-1">Paste your raw .env content here. It will be securely injected into the deployment folder before startup.</p>
+                    <h4 className="text-white font-bold text-sm">Environment Variables</h4>
+                    <p className="text-gray-400 text-xs mt-1">Add your secret keys and configurations here. These will be securely injected during deployment.</p>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-1 focus-within:border-purple-500 focus-within:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
-                    <div className="flex items-center gap-2 bg-black/40 px-4 py-2 border-b border-white/5 rounded-t-lg">
-                      <Terminal size={14} className="text-gray-500" />
-                      <span className="text-xs font-mono text-gray-400">.env</span>
-                    </div>
-                    <textarea 
-                      name="env_content" 
-                      value={formData.env_content} 
-                      onChange={handleChange} 
-                      placeholder="API_ID=1234567&#10;API_HASH=your_hash_here&#10;BOT_TOKEN=your_token_here"
-                      className="w-full h-48 bg-transparent text-green-400 font-mono text-sm p-4 outline-none resize-none placeholder-gray-700"
-                    ></textarea>
+                <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4">
+                  
+                  {/* Table Header */}
+                  <div className="flex gap-2 mb-2 px-1 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    <div className="w-1/3">Key</div>
+                    <div className="flex-1">Value</div>
+                    <div className="w-10"></div>
                   </div>
+
+                  {/* Dynamic Rows */}
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    {formData.envPairs.map((pair, index) => (
+                      <div key={index} className="flex gap-2 items-center group">
+                        <input 
+                          type="text" 
+                          placeholder="BOT_TOKEN"
+                          value={pair.key}
+                          onChange={(e) => handleEnvChange(index, 'key', e.target.value.toUpperCase())}
+                          className="w-1/3 bg-black border border-white/10 focus:border-purple-500 text-purple-400 placeholder-gray-700 rounded-lg px-3 py-2 outline-none font-mono text-sm transition-all"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="123456:ABC-DEF..."
+                          value={pair.value}
+                          onChange={(e) => handleEnvChange(index, 'value', e.target.value)}
+                          className="flex-1 bg-black border border-white/10 focus:border-purple-500 text-green-400 placeholder-gray-700 rounded-lg px-3 py-2 outline-none font-mono text-sm transition-all"
+                        />
+                        <button 
+                          onClick={() => removeEnvPair(index)}
+                          className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                          title="Delete Variable"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Button */}
+                  <button 
+                    onClick={addEnvPair}
+                    className="mt-4 w-full bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-gray-300 font-bold text-sm py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Plus size={16} /> Add Another Variable
+                  </button>
+
                 </div>
               </motion.div>
             )}
