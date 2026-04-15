@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🛠️ FIX: Trash2 import kiya Delete button ke liye
+// 🛠️ Trash2 imported
 import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket, Trash2, Plus } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
@@ -32,7 +32,7 @@ export default function Deploy() {
     app_name: '',       
     repo_url: '',       
     repo_name: '',      
-    envPairs: [{ key: '', value: '' }], // 🔥 NEW: Dynamic Array for ENV Variables
+    envPairs: [{ key: '', value: '' }], // 🔥 Dynamic Array for ENV Variables
     use_docker: false,  
     start_cmd: ''       
   });
@@ -91,7 +91,6 @@ export default function Deploy() {
     setError("");
   };
 
-  // Select Repo from List
   const selectRepo = (repo) => {
     setFormData({
       ...formData,
@@ -123,7 +122,6 @@ export default function Deploy() {
     setFormData({ ...formData, envPairs: newPairs });
   };
 
-  // Nav Handlers
   const handleNext = () => {
     if (step === 1 && (!formData.app_name || !formData.repo_url)) {
       setError("Please provide an App Name and a Repository URL!");
@@ -138,7 +136,6 @@ export default function Deploy() {
     setStep(step - 1);
   };
 
-  // Deploy Handler
   const handleDeploy = async () => {
     if (!formData.use_docker && !formData.start_cmd) {
       setError("PM2 requires a Start Command (e.g., 'python3 main.py')!");
@@ -153,7 +150,6 @@ export default function Deploy() {
     try {
       const headers = { "x-api-key": API_KEY };
 
-      // 🔥 PREPARE ENV STRING FROM ARRAY (Backend ko pehle jaisa data hi milega)
       const generatedEnvContent = formData.envPairs
         .filter(pair => pair.key.trim() !== '')
         .map(pair => `${pair.key.trim()}=${pair.value.trim()}`)
@@ -340,7 +336,7 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 2: ENVIRONMENT VARIABLES (DYNAMIC BOXES) ================= */}
+            {/* ================= STEP 2: ENVIRONMENT VARIABLES (MOBILE FIXED) ================= */}
             {step === 2 && (
               <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex gap-3">
@@ -351,40 +347,44 @@ export default function Deploy() {
                   </div>
                 </div>
 
-                <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4">
+                <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4 sm:p-6">
                   
-                  {/* Table Header */}
-                  <div className="flex gap-2 mb-2 px-1 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                  {/* Table Header (Hidden on Mobile) */}
+                  <div className="hidden sm:flex gap-2 mb-2 px-1 text-xs font-bold text-gray-500 uppercase tracking-widest">
                     <div className="w-1/3">Key</div>
                     <div className="flex-1">Value</div>
                     <div className="w-10"></div>
                   </div>
 
-                  {/* Dynamic Rows */}
-                  <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                  {/* 🔥 FIX: Mobile pe ab columns toot jayenge (Vertical), aur PC pe horizontal rahenge */}
+                  <div className="space-y-4 max-h-[60vh] sm:max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                     {formData.envPairs.map((pair, index) => (
-                      <div key={index} className="flex gap-2 items-center group">
+                      <div key={index} className="flex flex-col sm:flex-row gap-2 sm:items-center bg-white/[0.02] sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border border-white/5 sm:border-none group">
+                        
                         <input 
                           type="text" 
-                          placeholder="BOT_TOKEN"
+                          placeholder="KEY (e.g. PORT)"
                           value={pair.key}
                           onChange={(e) => handleEnvChange(index, 'key', e.target.value.toUpperCase())}
-                          className="w-1/3 bg-black border border-white/10 focus:border-purple-500 text-purple-400 placeholder-gray-700 rounded-lg px-3 py-2 outline-none font-mono text-sm transition-all"
+                          className="w-full sm:w-1/3 bg-black border border-white/10 focus:border-purple-500 text-purple-400 placeholder-gray-700 rounded-lg px-3 py-2.5 outline-none font-mono text-sm transition-all"
                         />
+                        
                         <input 
                           type="text" 
-                          placeholder="123456:ABC-DEF..."
+                          placeholder="VALUE (e.g. 8080)"
                           value={pair.value}
                           onChange={(e) => handleEnvChange(index, 'value', e.target.value)}
-                          className="flex-1 bg-black border border-white/10 focus:border-purple-500 text-green-400 placeholder-gray-700 rounded-lg px-3 py-2 outline-none font-mono text-sm transition-all"
+                          className="w-full sm:flex-1 bg-black border border-white/10 focus:border-purple-500 text-green-400 placeholder-gray-700 rounded-lg px-3 py-2.5 outline-none font-mono text-sm transition-all"
                         />
+                        
                         <button 
                           onClick={() => removeEnvPair(index)}
-                          className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                          className="w-full sm:w-auto mt-1 sm:mt-0 p-2.5 text-red-400 sm:text-gray-600 hover:text-white sm:hover:text-red-400 bg-red-500/10 sm:bg-transparent hover:bg-red-500 sm:hover:bg-red-500/10 rounded-lg transition-all flex justify-center items-center gap-2"
                           title="Delete Variable"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} /> <span className="sm:hidden text-sm font-bold">Remove</span>
                         </button>
+                        
                       </div>
                     ))}
                   </div>
@@ -392,7 +392,7 @@ export default function Deploy() {
                   {/* Add Button */}
                   <button 
                     onClick={addEnvPair}
-                    className="mt-4 w-full bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-gray-300 font-bold text-sm py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all"
+                    className="mt-4 w-full bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-gray-300 font-bold text-sm py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
                   >
                     <Plus size={16} /> Add Another Variable
                   </button>
