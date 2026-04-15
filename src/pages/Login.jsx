@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Server, User, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-import { FaGoogle, FaGithub } from 'react-icons/fa'; // 🔥 Naye Icons Import Kiye
+import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile'; // 🛡️ CLOUDFLARE TURNSTILE IMPORT
 import axios from 'axios';
 
 // --- ANIMATIONS ---
@@ -17,6 +18,9 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   
+  // 🛡️ CAPTCHA STATE
+  const [captchaToken, setCaptchaToken] = useState(null);
+
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -31,31 +35,32 @@ export default function Login() {
     const oauthUsername = params.get("username");
 
     if (oauthApiKey && oauthUsername) {
-      // Data save karo
       localStorage.setItem("cloud_api_key", oauthApiKey);
       localStorage.setItem("cloud_username", oauthUsername);
-      
-      // URL se kachra saaf kardo taaki clean lage
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Seedha Dashboard bhej do!
       navigate('/dashboard');
     }
   }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (error) setError(""); // Type karte waqt error hata do
+    if (error) setError(""); 
   };
 
   // ==========================================
-  // 🔐 TRADITIONAL LOGIN
+  // 🔐 TRADITIONAL LOGIN (With Turnstile Check)
   // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     
     if (!formData.username || !formData.password) {
       setError("Bhai, username aur password dono daal!");
+      return;
+    }
+
+    // 🛡️ CAPTCHA VERIFICATION
+    if (!captchaToken) {
+      setError("Pehle verify kar ki tu robot nahi hai! 🤖");
       return;
     }
 
@@ -67,7 +72,8 @@ export default function Login() {
       
       const response = await axios.post(`${API_URL}/auth/login`, {
         username: formData.username,
-        password: formData.password
+        password: formData.password,
+        captcha_token: captchaToken // Backend mein verify karne ke liye
       });
 
       if (response.data.status === "success") {
@@ -103,7 +109,6 @@ export default function Login() {
   const handleGithubLogin = async () => {
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      // 🔥 State parameter me AUTH_LOGIN_FLOW bhej rahe hain
       const response = await axios.get(`${API_URL}/api/github/login?username=AUTH_LOGIN_FLOW`);
       if (response.data.url) {
         window.location.href = response.data.url;
@@ -134,15 +139,17 @@ export default function Login() {
         </div>
 
         {/* Error Alert */}
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-            className="mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-bold"
-          >
-            <AlertCircle size={18} className="shrink-0" />
-            <p>{error}</p>
-          </motion.div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-bold shadow-lg"
+            >
+              <AlertCircle size={18} className="shrink-0" />
+              <p>{error}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-5">
@@ -193,11 +200,20 @@ export default function Login() {
             </div>
           </div>
 
+          {/* 🛡️ CLOUDFLARE TURNSTILE WIDGET */}
+          <div className="flex justify-center mt-4">
+            <Turnstile
+              siteKey="0x4AAAAAAC9_4Z66YP-JuWh-"
+              options={{ theme: 'dark' }}
+              onSuccess={(token) => setCaptchaToken(token)}
+            />
+          </div>
+
           {/* Submit Button */}
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full mt-8 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]"
+            className="w-full mt-4 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]"
           >
             {isLoading ? (
               <Loader2 size={20} className="animate-spin" />
