@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Server, ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw, RefreshCcw, Box, Cpu, CircleDot } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
 
 export default function Terminal() {
-  const { appName } = useParams(); // URL se app ka naam nikalenge
+  const { appName } = useParams(); 
   const navigate = useNavigate();
   const [appDetails, setAppDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -15,17 +15,17 @@ export default function Terminal() {
   // Terminal States
   const [logs, setLogs] = useState([]);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [actionType, setActionType] = useState(""); // 🔥 NEW: For Loading Animation text
   const logsEndRef = useRef(null);
   const wsRef = useRef(null);
 
-  // 1. Fetch App Details (Status, Docker/PM2 info)
+  // 1. Fetch App Details
   useEffect(() => {
     const key = localStorage.getItem("cloud_api_key");
     if (!key) return navigate('/login');
     setApiKey(key);
     fetchAppDetails(key);
     
-    // Cleanup WebSocket on unmount
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
@@ -42,7 +42,7 @@ export default function Terminal() {
         
         if (currentApp) {
           setAppDetails(currentApp);
-          connectWebSocket(currentApp); // Connect logs after getting details
+          connectWebSocket(currentApp); 
         } else {
           setLogs(["❌ App not found in your account!"]);
         }
@@ -56,7 +56,7 @@ export default function Terminal() {
 
   // 2. Connect Live Logs (WebSocket)
   const connectWebSocket = (app) => {
-    if (wsRef.current) wsRef.current.close(); // Close old connection
+    if (wsRef.current) wsRef.current.close(); 
     
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
@@ -72,39 +72,73 @@ export default function Terminal() {
     wsRef.current = ws;
   };
 
-  // Auto-scroll terminal
   useEffect(() => {
     if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
   // 3. Handle Buttons (Start, Stop, Restart)
-  const handleAction = async (actionType) => {
+  const handleAction = async (type) => {
+    setActionType(type); // 'start', 'stop', 'restart', 'redeploy'
     setIsActionLoading(true);
-    setLogs(prev => [...prev, `> Executing command: [${actionType.toUpperCase()}] ...`]);
+    setLogs(prev => [...prev, `> Executing command: [${type.toUpperCase()}] ...`]);
+    
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       await axios.post(`${API_URL}/api/action`, { 
         app_name: appName, 
-        action: actionType 
+        action: type === 'redeploy' ? 'restart' : type // Backend uses 'restart' for redeploy too
       }, { headers: { "x-api-key": apiKey } });
       
-      setLogs(prev => [...prev, `✅ Action '${actionType}' triggered successfully.`]);
-      // Refresh status after 2 seconds
-      setTimeout(() => fetchAppDetails(apiKey), 2000);
+      setLogs(prev => [...prev, `✅ Action '${type}' triggered successfully.`]);
+      setTimeout(() => {
+        fetchAppDetails(apiKey);
+        setIsActionLoading(false);
+        setActionType("");
+      }, 1500); // 1.5 second ka mast loading dikhayenge
+      
     } catch (err) {
       setLogs(prev => [...prev, `❌ Action failed: ${err.response?.data?.detail || err.message}`]);
+      setIsActionLoading(false);
+      setActionType("");
     }
-    setIsActionLoading(false);
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-purple-500 animate-pulse">Initializing Terminal Interface...</div>;
+    return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-purple-500 animate-pulse font-mono tracking-widest uppercase">Initializing Terminal Interface...</div>;
   }
 
+  // Helper for Loading Text
+  const getLoadingText = () => {
+    if (actionType === 'start') return 'IGNITING SYSTEM';
+    if (actionType === 'stop') return 'SHUTTING DOWN';
+    if (actionType === 'restart') return 'RESTARTING ENGINE';
+    if (actionType === 'redeploy') return 'PULLING & REDEPLOYING';
+    return 'PROCESSING';
+  };
+
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex flex-col">
+    <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex flex-col relative overflow-hidden">
       <Background />
       
+      {/* 🔥 NEW: FULL SCREEN ACTION LOADING OVERLAY */}
+      <AnimatePresence>
+        {isActionLoading && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center"
+          >
+            <div className="flex flex-col items-center">
+              <RotateCw size={48} className="text-purple-500 animate-spin mb-4 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]" />
+              <div className="text-purple-400 font-mono text-xl font-bold tracking-[0.3em] uppercase animate-pulse">
+                {getLoadingText()}...
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 🚀 TOP NAVBAR */}
       <nav className="border-b border-white/5 bg-black/40 backdrop-blur-xl z-50 shrink-0">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
@@ -143,7 +177,7 @@ export default function Terminal() {
               <Square size={16} className="fill-red-400/20"/> <span className="hidden sm:inline">Stop</span>
             </button>
             <div className="w-px h-6 bg-white/10 mx-1 hidden sm:block"></div>
-            <button onClick={() => handleAction('restart')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 hidden sm:flex items-center gap-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-sm font-bold disabled:opacity-50" title="Pulls latest code and restarts">
+            <button onClick={() => handleAction('redeploy')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 hidden sm:flex items-center gap-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-sm font-bold disabled:opacity-50" title="Pulls latest code and restarts">
               <RefreshCcw size={16}/> Redeploy
             </button>
           </div>
@@ -178,5 +212,4 @@ export default function Terminal() {
       </div>
     </div>
   );
-                    }
-
+}
