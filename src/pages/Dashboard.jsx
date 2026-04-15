@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2, MoreVertical } from 'lucide-react';
+import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2, MoreVertical, Cpu, Shield, ZapOff } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -18,74 +18,87 @@ const fadeUp = {
 };
 
 // ==========================================
-// 📡 LIVE LOGS MODAL (WebSockets)
-// ==========================================
-const LiveLogsModal = ({ isOpen, onClose, appName, useDocker }) => {
-  const [logs, setLogs] = useState([]);
-  const logsEndRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen || !appName) return;
-    setLogs([]); 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws'); 
-    const ws = new WebSocket(`${wsBaseUrl}/ws/stream/${appName}?use_docker=${useDocker}`);
-
-    ws.onmessage = (event) => setLogs((prev) => [...prev, event.data]);
-    ws.onerror = () => setLogs((prev) => [...prev, "❌ WebSocket Connection Error. Backend zinda hai?"]);
-
-    return () => ws.close(); 
-  }, [isOpen, appName, useDocker]);
-
-  useEffect(() => {
-    if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[70vh] sm:h-[80vh]">
-        <div className="flex justify-between items-center p-4 border-b border-white/10 bg-black/50">
-          <div className="flex items-center gap-2 text-white font-bold tracking-widest">
-            <Terminal size={18} className="text-purple-400"/> {appName.toUpperCase()} // LIVE STREAM
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 bg-white/5 rounded-lg hover:bg-white/10">
-            <X size={20}/>
-          </button>
-        </div>
-        <div className="p-4 overflow-y-auto flex-1 font-mono text-xs sm:text-sm text-green-400 bg-black tracking-wide leading-relaxed">
-          {logs.length === 0 ? <div className="animate-pulse">Connecting to live stream pipe...</div> : logs.map((log, i) => <div key={i}>{log}</div>)}
-          <div ref={logsEndRef} /> 
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// ==========================================
-// 💸 PAYWALL MODAL (Pricing Plans)
+// 💸 PAYWALL MODAL (Pricing Plans - ₹49 vs ₹89)
 // ==========================================
 const PaywallModal = ({ isOpen, onClose, navigate }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 pb-20 sm:pb-4">
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-        className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-10"><X size={20}/></button>
-        <div className="p-8 text-center border-b border-white/5 bg-gradient-to-b from-purple-900/20 to-transparent">
+        className="bg-[#0a0a0a] border border-white/10 w-full max-w-5xl rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] relative max-h-[90vh] flex flex-col">
+        
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-20"><X size={20}/></button>
+        
+        {/* Header */}
+        <div className="p-6 sm:p-8 text-center border-b border-white/5 bg-gradient-to-b from-purple-900/20 to-transparent shrink-0">
           <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
             <Crown className="text-purple-400 w-8 h-8" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">Upgrade to Deploy</h2>
-          <p className="text-gray-400 text-sm sm:text-base max-w-sm mx-auto">You need an active Premium subscription to deploy applications to the cloud.</p>
+          <p className="text-gray-400 text-sm sm:text-base max-w-lg mx-auto">Select a high-performance cloud engine to deploy and scale your applications instantly.</p>
         </div>
-        {/* 🔥 FIX: Mobile par spacing badha di hai taaki button na chhupe */}
-        <div className="p-6 sm:p-8 flex justify-center bg-[#050505] pb-10 sm:pb-8">
-            <button onClick={() => navigate('/payment')} className="w-full max-w-md bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] flex justify-center items-center gap-2">
-              View Premium Plans <Zap size={18}/>
-            </button>
+
+        {/* Pricing Cards */}
+        <div className="p-4 sm:p-8 bg-[#050505] overflow-y-auto flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            
+            {/* 🔥 PLAN 1: ₹49 (Basic Pro) */}
+            <div className="bg-white/[0.02] border border-white/10 hover:border-purple-500/30 rounded-2xl p-6 sm:p-8 flex flex-col transition-all">
+              <h3 className="text-xl font-bold text-white mb-2">NEX Starter</h3>
+              <p className="text-gray-400 text-sm mb-6">Perfect for small bots and personal projects.</p>
+              <div className="text-4xl font-black text-white mb-6">₹49<span className="text-lg text-gray-500 font-normal">/mo</span></div>
+              
+              <div className="space-y-4 mb-8 flex-1">
+                {[
+                  '2 Core High-Speed CPU', 
+                  '8 GB Dedicated RAM', 
+                  'Unlimited Bandwidth', 
+                  'Zero Downtime (24/7)', 
+                  'Standard Network Speed'
+                ].map((feature, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm text-gray-300">
+                    <Check size={18} className="text-purple-400 shrink-0" /> {feature}
+                  </div>
+                ))}
+              </div>
+              
+              <button onClick={() => navigate('/payment')} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-all">
+                Select Starter
+              </button>
+            </div>
+
+            {/* 🔥 PLAN 2: ₹89 (Pro Ultra - Highlighted) */}
+            <div className="bg-purple-900/10 border border-purple-500/50 rounded-2xl p-6 sm:p-8 flex flex-col relative shadow-[0_0_30px_rgba(168,85,247,0.15)] transform md:-translate-y-2">
+              {/* Highlight Badge */}
+              <div className="absolute top-0 inset-x-0 flex justify-center">
+                <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-b-lg shadow-lg">Most Popular</span>
+              </div>
+              
+              <h3 className="text-xl font-bold text-white mb-2 mt-2 flex items-center gap-2">NEX Overlord <Zap size={18} className="text-yellow-400 fill-yellow-400/20"/></h3>
+              <p className="text-purple-300/70 text-sm mb-6">Extreme power for production-grade applications.</p>
+              <div className="text-4xl font-black text-white mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">₹89<span className="text-lg text-gray-500 font-normal">/mo</span></div>
+              
+              <div className="space-y-4 mb-8 flex-1">
+                {[
+                  '4 Core Ultra-Fast CPU', 
+                  '16 GB DDR4 RAM', 
+                  'Unlimited Deployments', 
+                  'Advanced DDoS Protection', 
+                  'Priority Support Desk',
+                  '10 Gbps Uplink Speed'
+                ].map((feature, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm text-white font-medium">
+                    <Zap size={18} className="text-yellow-400 shrink-0" /> {feature}
+                  </div>
+                ))}
+              </div>
+              
+              <button onClick={() => navigate('/payment')} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
+                Deploy with Overlord
+              </button>
+            </div>
+
+          </div>
         </div>
       </motion.div>
     </div>
@@ -98,7 +111,7 @@ const PaywallModal = ({ isOpen, onClose, navigate }) => {
 const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
   const [activeTab, setActiveTab] = useState('env');
   const [loading, setLoading] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // 🔥 NEW: Gande alert box ki jagah sexy animation ke liye
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const [envText, setEnvText] = useState("");
   const [repoDetails, setRepoDetails] = useState({ url: "", name: "", cmd: "" });
@@ -112,7 +125,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
       } else {
         setEnvText("");
       }
-      setIsConfirmingDelete(false); // Modal khulte hi reset kar do
+      setIsConfirmingDelete(false);
     }
   }, [app]);
 
@@ -159,7 +172,6 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
     setLoading(false);
   };
 
-  // 🔥 FIX: Beautiful Delete Function without annoying browser alerts
   const handleDelete = async () => {
     setLoading(true);
     try {
@@ -191,15 +203,15 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
           </button>
         </div>
 
-        <div className="flex border-b border-white/10 bg-black/20">
-          <button onClick={() => setActiveTab('env')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'env' ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5' : 'text-gray-400 hover:text-white'}`}>
-            <FileCode2 size={16}/> Environment Variables
+        <div className="flex border-b border-white/10 bg-black/20 overflow-x-auto">
+          <button onClick={() => setActiveTab('env')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'env' ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <FileCode2 size={16}/> Variables
           </button>
-          <button onClick={() => setActiveTab('repo')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'repo' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' : 'text-gray-400 hover:text-white'}`}>
-            <FolderGit2 size={16}/> Source Config
+          <button onClick={() => setActiveTab('repo')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'repo' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <FolderGit2 size={16}/> Source
           </button>
-          <button onClick={() => setActiveTab('danger')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors ${activeTab === 'danger' ? 'text-red-400 border-b-2 border-red-400 bg-red-500/5' : 'text-gray-400 hover:text-white'}`}>
-            <AlertTriangle size={16}/> Danger Zone
+          <button onClick={() => setActiveTab('danger')} className={`flex-1 p-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'danger' ? 'text-red-400 border-b-2 border-red-400 bg-red-500/5' : 'text-gray-400 hover:text-white'}`}>
+            <AlertTriangle size={16}/> Danger
           </button>
         </div>
 
@@ -225,7 +237,7 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
                 <label className="block text-sm text-gray-400 mb-1">GitHub Repository URL</label>
                 <input type="text" value={repoDetails.url} onChange={(e) => setRepoDetails({...repoDetails, url: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">Repo Name</label>
                   <input type="text" value={repoDetails.name} onChange={(e) => setRepoDetails({...repoDetails, name: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500" />
@@ -241,7 +253,6 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
             </div>
           )}
 
-          {/* 🔥 FIX: New Beautiful Danger Zone UI */}
           {activeTab === 'danger' && (
             <div className="animate-in fade-in duration-200 text-center py-4">
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
@@ -294,7 +305,6 @@ export default function Dashboard() {
   
   const [isPremium, setIsPremium] = useState(localStorage.getItem("cloud_is_premium") === "true");
 
-  const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false); 
   const [selectedApp, setSelectedApp] = useState(null);
@@ -350,7 +360,11 @@ export default function Dashboard() {
     navigate('/login');
   };
 
-  const openLogs = (app) => { setSelectedApp(app); setIsLogsOpen(true); };
+  // 🔥 FIX: Redirect to Terminal instead of opening modal
+  const openTerminal = (appName) => { 
+    navigate(`/app/${appName}`);
+  };
+  
   const openManage = (app) => { setSelectedApp(app); setIsManageOpen(true); };
   
   const handleDeployClick = (e) => {
@@ -453,8 +467,8 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mb-8">
-                  <span className="text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-gray-300 px-3 py-1 rounded-md">
-                    Engine: {app.use_docker ? 'Docker' : 'PM2'}
+                  <span className="text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-gray-300 px-3 py-1 rounded-md flex items-center gap-1 w-fit">
+                    {app.use_docker ? <Cpu size={12}/> : <Terminal size={12}/>} Engine: {app.use_docker ? 'Docker' : 'PM2'}
                   </span>
                 </div>
 
@@ -463,7 +477,8 @@ export default function Dashboard() {
                     <button onClick={() => triggerAction(app.pm2_name, 'restart')} title="Restart Process" className="p-2.5 bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-400 rounded-lg transition-colors border border-transparent hover:border-purple-500/30">
                       <RotateCw size={16} />
                     </button>
-                    <button onClick={() => openLogs(app)} title="View Live Logs" className="p-2.5 bg-white/5 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-500/30">
+                    {/* 🔥 FIX: Seedha terminal open karega */}
+                    <button onClick={() => openTerminal(app.pm2_name)} title="Open Terminal & Logs" className="p-2.5 bg-white/5 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-500/30">
                       <Terminal size={16} />
                     </button>
                   </div>
@@ -479,10 +494,6 @@ export default function Dashboard() {
       </div>
 
       <AnimatePresence>
-        {isLogsOpen && selectedApp && (
-          <LiveLogsModal isOpen={isLogsOpen} onClose={() => setIsLogsOpen(false)} appName={selectedApp.pm2_name} useDocker={selectedApp.use_docker || false} />
-        )}
-        
         {isPaywallOpen && (
           <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} navigate={navigate} />
         )}
@@ -499,4 +510,4 @@ export default function Dashboard() {
       </AnimatePresence>
     </div>
   );
-                }
+      }
