@@ -10,7 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Deploy from './pages/Deploy';
 import Profile from './pages/Profile';
 import Payment from './pages/Payment';
-import Support from './pages/Support'; // 🔥 Tera naya Support page import ho gaya
+import Support from './pages/Support'; 
+import Terminal from './pages/Terminal'; // 🔥 YAHAN TERMINAL IMPORT KIYA HAI
 
 // ==========================================
 // 🛡️ AUTH GUARD (Bina Login ke andar aane nahi dega)
@@ -75,6 +76,13 @@ export default function App() {
             </RequireAuth>
           } />
 
+          {/* 🔥 NEW: TERMINAL ROUTE (Ab 404 nahi aayega!) */}
+          <Route path="/app/:appName" element={
+            <RequireAuth>
+              <Terminal />
+            </RequireAuth>
+          } />
+
           {/* ========================================== */}
           {/* 👑 PREMIUM ONLY ROUTE (Login + Premium dono chahiye) */}
           {/* ========================================== */}
@@ -93,7 +101,7 @@ export default function App() {
             <div className="h-screen flex flex-col items-center justify-center text-center">
               <h1 className="text-6xl font-black text-purple-600 mb-4">404</h1>
               <p className="text-gray-400 text-xl font-bold uppercase tracking-widest">System Not Found</p>
-              <a href="/" className="mt-8 text-purple-400 hover:text-white transition-colors border border-purple-500/30 hover:border-purple-500 px-6 py-2 rounded-lg">
+              <a href="/dashboard" className="mt-8 text-purple-400 hover:text-white transition-colors border border-purple-500/30 hover:border-purple-500 px-6 py-2 rounded-lg">
                 Return to Base
               </a>
             </div>
