@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2 } from 'lucide-react';
+// 🔥 FIX: 'MoreVertical' import kiya 3-dot menu ke liye
+import { Server, Terminal, RotateCw, Plus, Box, LogOut, Settings, X, Zap, Check, Crown, AlertTriangle, Trash2, Save, FolderGit2, FileCode2, MoreVertical } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
-import { Link, useNavigate, useLocation } from 'react-router-dom'; // 🔥 useLocation IMPORT KIYA
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
 
@@ -98,7 +99,6 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
   const [activeTab, setActiveTab] = useState('env');
   const [loading, setLoading] = useState(false);
 
-  // Form States
   const [envText, setEnvText] = useState("");
   const [repoDetails, setRepoDetails] = useState({ url: "", name: "", cmd: "" });
 
@@ -266,17 +266,15 @@ const ManageAppModal = ({ isOpen, onClose, app, apiKey, refreshDashboard }) => {
 // ==========================================
 export default function Dashboard() {
   const navigate = useNavigate();
-  const location = useLocation(); // 🔥 URL BYPASS CATCHER
+  const location = useLocation(); 
   
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState("Commander");
   const [apiKey, setApiKey] = useState("");
   
-  // 🔥 GLITCH FIX: Initial state localStorage se uthayega
   const [isPremium, setIsPremium] = useState(localStorage.getItem("cloud_is_premium") === "true");
 
-  // Modals State
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false); 
@@ -291,10 +289,9 @@ export default function Dashboard() {
       return;
     }
 
-    // 🔥 URL BYPASS CHECK: Agar /deploy se dhakka kha ke wapas aaya hai
     if (location.state?.showPaywall) {
       setIsPaywallOpen(true);
-      window.history.replaceState({}, document.title); // History clean kar do
+      window.history.replaceState({}, document.title); 
     }
 
     setApiKey(key);
@@ -313,7 +310,6 @@ export default function Dashboard() {
       if (response.data.status === "success") {
         setServices(response.data.data || []);
         
-        // 🔥 PREVENT FLICKER: Status update aur save
         const premiumStatus = response.data.is_premium || false;
         setIsPremium(premiumStatus);
         localStorage.setItem("cloud_is_premium", premiumStatus);
@@ -331,11 +327,10 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("cloud_api_key");
     localStorage.removeItem("cloud_username");
-    localStorage.removeItem("cloud_is_premium"); // Clear on logout
+    localStorage.removeItem("cloud_is_premium");
     navigate('/login');
   };
 
-  // Button Actions
   const openLogs = (app) => { setSelectedApp(app); setIsLogsOpen(true); };
   const openManage = (app) => { setSelectedApp(app); setIsManageOpen(true); };
   
@@ -367,15 +362,26 @@ export default function Dashboard() {
             <Server className="text-purple-500 w-6 h-6" /> NEX<span className="text-purple-500">CLOUD</span>
           </Link>
           
-          <div className="flex items-center gap-4 sm:gap-6">
-            <Link to="/profile" className="hidden sm:flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* 🔥 MOBILE & PC DONO PE SINK HUA PROFILE AVATAR */}
+            <Link to="/profile" className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-colors bg-white/5 sm:bg-transparent px-2 sm:px-0 py-1.5 sm:py-0 rounded-full sm:rounded-none hover:bg-white/10 sm:hover:bg-transparent">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 relative shadow-lg border border-[#050505]">
                 {username.charAt(0).toUpperCase()}
+                {isPremium && (
+                  <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
+                    <Crown size={12} className="text-yellow-400" />
+                  </div>
+                )}
               </div>
-              {username}
-              {isPremium && <Crown size={14} className="text-yellow-400" title="Premium Active"/>}
+              <span className="hidden sm:inline text-white mr-1">{username}</span>
             </Link>
-            <button onClick={handleLogout} className="text-gray-500 hover:text-red-400 transition-colors p-2 bg-white/5 rounded-xl hover:bg-red-500/10">
+
+            {/* 🔥 NAYA 3-DOT MENU FOR SUPPORT/BILLING */}
+            <Link to="/support" className="text-gray-500 hover:text-white transition-colors p-2 bg-white/5 rounded-xl hover:bg-white/10" title="Billing & Support">
+              <MoreVertical size={18} />
+            </Link>
+
+            <button onClick={handleLogout} className="text-gray-500 hover:text-red-400 transition-colors p-2 bg-white/5 rounded-xl hover:bg-red-500/10" title="Logout">
               <LogOut size={18} />
             </button>
           </div>
@@ -389,13 +395,12 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm">Manage your deployed bots and containers.</p>
           </div>
           
-          <Link to="/deploy" onClick={handleDeployClick} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+          <Link to="/deploy" onClick={handleDeployClick} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] w-full sm:w-auto justify-center">
             {isPremium ? <Plus size={18} /> : <Crown size={18} className="text-yellow-300" />} 
             Deploy New App
           </Link>
         </div>
 
-        {/* Apps Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => <div key={i} className="h-48 bg-white/[0.02] border border-white/5 rounded-3xl animate-pulse"></div>)}
