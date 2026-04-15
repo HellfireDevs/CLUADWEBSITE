@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Settings, AlertTriangle } from 'lucide-react'; // 🔥 Maintenance screen ke icons
 
 // 📦 Importing all pages from 'pages' folder
 import Home from './pages/Home';
@@ -12,6 +13,40 @@ import Profile from './pages/Profile';
 import Payment from './pages/Payment';
 import Support from './pages/Support'; 
 import Terminal from './pages/Terminal'; // 🔥 YAHAN TERMINAL IMPORT KIYA HAI
+
+// ==========================================
+// 🔴 MASTER KILL SWITCH (MAINTENANCE MODE)
+// ==========================================
+// Isko 'true' kar dega toh poori website band ho jayegi aur Maintenance page dikhega.
+// Wapas on karna ho toh 'false' kar dena.
+const MAINTENANCE_MODE = false; 
+
+// ==========================================
+// 🛑 MAINTENANCE SCREEN UI
+// ==========================================
+const MaintenanceScreen = () => {
+  return (
+    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg h-[400px] bg-red-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+      
+      <div className="relative z-10 text-center bg-white/[0.02] border border-red-500/20 backdrop-blur-xl p-10 rounded-3xl shadow-2xl max-w-md w-full">
+        <div className="flex justify-center mb-6 relative">
+          <Settings className="w-20 h-20 text-red-500 animate-[spin_4s_linear_infinite]" />
+          <AlertTriangle className="w-8 h-8 text-yellow-400 absolute bottom-0 right-[35%] bg-[#050505] rounded-full" />
+        </div>
+        <h1 className="text-3xl font-black text-white tracking-widest mb-2 uppercase">System Offline</h1>
+        <p className="text-red-400 font-bold tracking-widest text-sm mb-6">TEMPORARY SHUTDOWN</p>
+        <p className="text-gray-400 text-sm leading-relaxed mb-8">
+          NEX<span className="text-blue-500">CLOUD</span> is currently undergoing scheduled maintenance and core upgrades. We will be back online shortly. 
+        </p>
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-bold uppercase tracking-widest">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+          Engine Down
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ==========================================
 // 🛡️ AUTH GUARD (Bina Login ke andar aane nahi dega)
@@ -37,6 +72,13 @@ const RequirePremium = ({ children }) => {
 };
 
 export default function App() {
+  
+  // 🔴 AGAR MAINTENANCE MODE ON HAI TOH SEEDHA KICK OUT MARO
+  if (MAINTENANCE_MODE) {
+    return <MaintenanceScreen />;
+  }
+
+  // ✅ NORMAL APP ROUTING
   return (
     <Router>
       <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-purple-500/30 font-sans">
@@ -110,4 +152,5 @@ export default function App() {
       </div>
     </Router>
   );
+}
 }
