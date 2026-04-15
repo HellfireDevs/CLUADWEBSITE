@@ -32,7 +32,7 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
       });
       if (response.data.status === "success") {
         setStep(2);
-        setMessage("OTP sent to your registered email address.");
+        setMessage("✅ OTP sent to your registered email address.");
       }
     } catch (err) {
       setMessage("❌ Failed to send OTP: " + (err.response?.data?.detail || err.message));
@@ -41,15 +41,18 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
   };
 
   const confirmDeleteAccount = async () => {
-    if (!otp) {
-      setMessage("Please enter the OTP.");
+    // 🔥 FIX: Whitespace remove karne ke liye trim() lagaya
+    const cleanOtp = otp.trim();
+    
+    if (!cleanOtp) {
+      setMessage("⚠️ Please enter the OTP.");
       return;
     }
     setLoading(true);
     setMessage("");
     try {
       const response = await axios.post(`${API_URL}/api/account/confirm-delete`, {
-        otp: otp
+        otp: cleanOtp 
       }, {
         headers: { "x-api-key": apiKey }
       });
@@ -81,7 +84,7 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
 
         <div className="p-6 bg-[#050505]">
           {message && (
-            <div className={`p-3 rounded-lg text-sm mb-4 border ${message.includes('❌') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
+            <div className={`p-3 rounded-lg text-sm mb-4 border ${message.includes('❌') || message.includes('⚠️') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
               {message}
             </div>
           )}
@@ -161,7 +164,6 @@ export default function Profile() {
   const fetchUserProfile = async (key) => {
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      // Assuming you have an endpoint like /api/profile to get user details
       const response = await axios.get(`${API_URL}/api/profile`, {
         headers: { "x-api-key": key }
       });
@@ -178,7 +180,6 @@ export default function Profile() {
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           setDaysLeft(diffDays > 0 ? diffDays : 0);
           
-          // Agar expiry cross ho gayi hai toh
           if(diffDays <= 0) setIsPremium(false);
         }
       }
@@ -212,9 +213,26 @@ export default function Profile() {
           <Link to="/" className="flex items-center gap-2 text-white font-black text-xl tracking-widest hover:scale-105 transition-transform">
             <Server className="text-purple-500 w-6 h-6" /> NEX<span className="text-purple-500">CLOUD</span>
           </Link>
-          <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2">
-            <ArrowLeft size={16} /> Dashboard
-          </Link>
+          
+          {/* 🔥 FIX: Mobile pe ab Profile button dikhega! */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2">
+              <ArrowLeft size={16} /> <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            
+            {/* User Profile Avatar */}
+            <div className="flex items-center gap-2 text-sm font-bold text-gray-400">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 relative">
+                {username.charAt(0).toUpperCase()}
+                {isPremium && (
+                  <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
+                    <Crown size={12} className="text-yellow-400" />
+                  </div>
+                )}
+              </div>
+              <span className="hidden sm:inline text-white">{username}</span>
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -245,7 +263,7 @@ export default function Profile() {
 
         <motion.div variants={{ visible: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="visible" className="space-y-6">
           
-          {/* ================= SUBSCRIPTION / PLAN CARD (NEW 🔥) ================= */}
+          {/* ================= SUBSCRIPTION / PLAN CARD ================= */}
           <motion.div variants={fadeInUp} className={`border backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden ${isPremium ? 'bg-yellow-500/[0.02] border-yellow-500/30' : 'bg-white/[0.02] border-white/10'}`}>
             {isPremium && <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 blur-[50px] -z-10 rounded-full"></div>}
             
