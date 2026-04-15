@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Github, Search, Rocket } from 'lucide-react';
+// 🛠️ FIX 1: Yahan se 'Github' ko hata diya hai
+import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket } from 'lucide-react';
+// 🛠️ FIX 2: Naya FaGithub import kar liya
+import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
@@ -25,7 +28,7 @@ export default function Deploy() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
 
-  // Form State (Removed folder_path because backend handles it)
+  // Form State
   const [formData, setFormData] = useState({
     app_name: '',       
     repo_url: '',       
@@ -52,7 +55,7 @@ export default function Deploy() {
       });
       if (response.data.status === "connected") {
         setIsGithubConnected(true);
-        setRepos(response.data.repos); // Backend already sorts them by 'pushed_at' (latest on top)
+        setRepos(response.data.repos);
       } else {
         setIsGithubConnected(false);
       }
@@ -65,19 +68,19 @@ export default function Deploy() {
 
   // 🐙 Handle GitHub Connect
   const handleGithubConnect = async () => {
-    const username = localStorage.getItem("username") || "user"; // Make sure username is in localStorage
+    const username = localStorage.getItem("cloud_username") || "user"; 
     const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     try {
       const response = await axios.get(`${API_URL}/api/github/login?username=${username}`);
       if (response.data.url) {
-        window.location.href = response.data.url; // Redirects to GitHub OAuth page
+        window.location.href = response.data.url; 
       }
     } catch (err) {
       setError("Failed to generate GitHub login URL");
     }
   };
 
-  // Smart GitHub URL Extractor (Manual typing)
+  // Smart GitHub URL Extractor
   const handleUrlChange = (e) => {
     const url = e.target.value;
     let extractedName = formData.repo_name;
@@ -93,7 +96,7 @@ export default function Deploy() {
   const selectRepo = (repo) => {
     setFormData({
       ...formData,
-      repo_url: repo.url, // Backend requires the clone URL
+      repo_url: repo.url,
       repo_name: repo.name
     });
     setError("");
@@ -133,17 +136,13 @@ export default function Deploy() {
     try {
       const headers = { "x-api-key": API_KEY };
 
-      // Optional: Inject ENV if provided
       if (formData.env_content.trim() !== '') {
-        // Backend folder path logic needs to be handled on backend, 
-        // passing app_name so backend can construct the path.
         await axios.post(`${API_URL}/api/inject-env`, {
           app_name: formData.app_name, 
           env_content: formData.env_content
         }, { headers }).catch(err => console.log("Env injection skip/fail", err));
       }
 
-      // Step 2: Main Deployment
       const payload = {
         repo_url: formData.repo_url,
         repo_name: formData.repo_name,
@@ -165,7 +164,6 @@ export default function Deploy() {
     }
   };
 
-  // Filter Repositories based on search
   const filteredRepos = repos.filter(repo => repo.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
@@ -198,7 +196,8 @@ export default function Deploy() {
           <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-purple-600 -z-10 rounded-full transition-all duration-500" style={{ width: `${((step - 1) / 2) * 100}%` }}></div>
           
           {[
-            { num: 1, title: "Source", icon: Github },
+            // 🛠️ FIX 3: Yahan icon ko FaGithub kar diya
+            { num: 1, title: "Source", icon: FaGithub },
             { num: 2, title: "Environment", icon: Lock },
             { num: 3, title: "Execution", icon: Cpu }
           ].map((s) => (
@@ -245,7 +244,8 @@ export default function Deploy() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Selected Repository URL</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><Github size={18} /></div>
+                    {/* 🛠️ FIX 4: Yahan FaGithub kar diya */}
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><FaGithub size={18} /></div>
                     <input type="text" name="repo_url" value={formData.repo_url} onChange={handleUrlChange} placeholder="Enter manually or select from GitHub below"
                       className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]" />
                   </div>
@@ -254,7 +254,8 @@ export default function Deploy() {
                 {/* 🐙 GITHUB INTEGRATION UI */}
                 <div className="mt-8 pt-6 border-t border-white/5">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2"><Github size={18}/> Import from GitHub</h3>
+                    {/* 🛠️ FIX 5: Yahan FaGithub kar diya */}
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2"><FaGithub size={18}/> Import from GitHub</h3>
                     {!isGithubConnected && (
                       <button onClick={handleGithubConnect} className="bg-white/10 hover:bg-white/20 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2">
                         Connect Account
@@ -266,7 +267,8 @@ export default function Deploy() {
                     <div className="flex justify-center items-center py-8"><Loader2 className="animate-spin text-purple-500 w-8 h-8" /></div>
                   ) : !isGithubConnected ? (
                     <div className="bg-[#0a0a0a] border border-white/5 rounded-xl p-6 text-center">
-                      <Github size={40} className="mx-auto text-gray-600 mb-3" />
+                      {/* 🛠️ FIX 6: Yahan FaGithub kar diya */}
+                      <FaGithub size={40} className="mx-auto text-gray-600 mb-3" />
                       <p className="text-sm text-gray-400 mb-4">Connect your GitHub to easily import public and private repositories.</p>
                       <button onClick={handleGithubConnect} className="bg-[#24292e] hover:bg-[#2f363d] text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg">
                         Connect with GitHub
