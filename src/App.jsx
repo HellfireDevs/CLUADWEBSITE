@@ -19,7 +19,7 @@ import Terminal from './pages/Terminal'; // 🔥 YAHAN TERMINAL IMPORT KIYA HAI
 // ==========================================
 // Isko 'true' kar dega toh poori website band ho jayegi aur Maintenance page dikhega.
 // Wapas on karna ho toh 'false' kar dena.
-const MAINTENANCE_MODE = true; 
+const MAINTENANCE_MODE = false; 
 
 // ==========================================
 // 🛑 MAINTENANCE SCREEN UI
