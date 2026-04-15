@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, ArrowLeft, ReceiptText, LifeBuoy, Send, MessageSquare, Clock, CheckCircle, XCircle, AlertCircle, Plus } from 'lucide-react';
+import { Server, ArrowLeft, ReceiptText, LifeBuoy, Send, MessageSquare, Clock, CheckCircle, XCircle, AlertCircle, Plus, Shield } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
