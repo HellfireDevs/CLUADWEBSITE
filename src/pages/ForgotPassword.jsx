@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, User, Key, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Server, User, Key, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -13,14 +13,14 @@ const containerVariants = {
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // Step 1: Username, Step 2: OTP & New Password
+  const [step, setStep] = useState(1); // Step 1: Identifier (User/Email), Step 2: OTP & New Password
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const [formData, setFormData] = useState({
-    username: '',
+    username: '', // Ye variable backend ke payload ke hisaab se hai, isme email bhi aa sakta hai
     otp: '',
     new_password: ''
   });
@@ -30,11 +30,11 @@ export default function ForgotPassword() {
     if (error) setError(""); 
   };
 
-  // STEP 1: Username bhej kar OTP mangwana
+  // STEP 1: Username ya Email bhej kar OTP mangwana
   const handleRequestReset = async (e) => {
     e.preventDefault();
     if (!formData.username) {
-      setError("Username toh daal bhai!");
+      setError("Username ya Email toh daal bhai!");
       return;
     }
 
@@ -45,7 +45,7 @@ export default function ForgotPassword() {
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       const response = await axios.post(`${API_URL}/auth/forgot-password`, {
-        username: formData.username
+        username: formData.username // Backend humara smart hai, handle kar lega
       });
 
       if (response.data.status === "success") {
@@ -56,7 +56,7 @@ export default function ForgotPassword() {
         }, 1500);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "User nahi mila ya network error hai!");
+      setError(err.response?.data?.detail || "Account nahi mila ya network error hai!");
     } finally {
       setIsLoading(false);
     }
@@ -148,16 +148,17 @@ export default function ForgotPassword() {
               >
                 <div className="text-center bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 mb-6">
                   <Lock className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-300">Enter your username to receive a password reset code on your registered email.</p>
+                  <p className="text-sm text-gray-300">Enter your username or registered email to receive a password reset code.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username or Email</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500 group-focus-within:text-orange-500 transition-colors">
-                      <User size={18} />
+                      {/* 🔥 SMART ICON: Email type karega toh Mail icon, varna User icon */}
+                      {formData.username.includes('@') ? <Mail size={18} /> : <User size={18} />}
                     </div>
-                    <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="SuperAdmin123"
+                    <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="admin123 or user@gmail.com"
                       className="w-full bg-[#0a0a0a] border border-white/10 focus:border-orange-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(249,115,22,0.2)]" />
                   </div>
                 </div>
@@ -225,4 +226,3 @@ export default function ForgotPassword() {
     </div>
   );
 }
-
