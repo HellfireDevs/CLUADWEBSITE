@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, User, Mail, Lock, Key, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
-import { Turnstile } from '@marsidev/react-turnstile'; // 🛡️ CLOUDFLARE TURNSTILE IMPORT
+import { Turnstile } from '@marsidev/react-turnstile'; 
 import axios from 'axios';
 
 // --- ANIMATIONS ---
@@ -27,6 +27,10 @@ export default function Register() {
   // 📜 TERMS & PRIVACY STATE
   const [isAgreed, setIsAgreed] = useState(false);
 
+  // 🔍 USERNAME LIVE CHECK STATES
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken, invalid
+  const [usernameMessage, setUsernameMessage] = useState('');
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -40,12 +44,70 @@ export default function Register() {
   };
 
   // ==========================================
-  // 1️⃣ TRADITIONAL REGISTER (With Cloudflare Check)
+  // 🪄 LIVE USERNAME CHECK (Debounced)
+  // ==========================================
+  useEffect(() => {
+    const checkUsername = async () => {
+      const uname = formData.username;
+      
+      // 1. Agar khali hai toh kuch mat karo
+      if (!uname) {
+        setUsernameStatus('idle');
+        setUsernameMessage('');
+        return;
+      }
+      
+      // 2. Sirf 1-2 word likha hai toh block karo
+      if (uname.length < 3) {
+        setUsernameStatus('invalid');
+        setUsernameMessage('⚠️ Username must be at least 3 characters.');
+        return;
+      }
+
+      // 3. Space ya special char daala hai toh gaali do (block karo)
+      if (!/^[a-zA-Z0-9_]+$/.test(uname)) {
+        setUsernameStatus('invalid');
+        setUsernameMessage('⚠️ Only letters, numbers, and underscore (_) allowed.');
+        return;
+      }
+
+      // 4. Sab theek hai toh backend se pucho
+      setUsernameStatus('checking');
+      setUsernameMessage('⏳ Checking availability...');
+
+      try {
+        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+        // Backend se check karwa rahe hain
+        const response = await axios.get(`${API_URL}/auth/check-username?username=${uname}`);
+        
+        if (response.data.available) {
+          setUsernameStatus('available');
+          setUsernameMessage('✅ Username is available!');
+        } else {
+          setUsernameStatus('taken');
+          setUsernameMessage('❌ Username is already taken!');
+        }
+      } catch (err) {
+        // Agar endpoint nahi mila ya backend down hai
+        setUsernameStatus('idle');
+        setUsernameMessage('');
+      }
+    };
+
+    // Debounce: User ke type karne ke 500ms baad hi API hit hogi (Performance bachegi)
+    const timeoutId = setTimeout(() => {
+      checkUsername();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.username]);
+
+  // ==========================================
+  // 1️⃣ TRADITIONAL REGISTER
   // ==========================================
   const handleRegister = async (e) => {
     e.preventDefault();
     
-    // 🛑 TERMS CHECK
     if (!isAgreed) {
       setError("Bhai, pehle Terms aur Privacy Policy toh maan le! 😂");
       return;
@@ -56,7 +118,11 @@ export default function Register() {
       return;
     }
 
-    // 🛡️ CAPTCHA VERIFICATION
+    if (usernameStatus === 'invalid' || usernameStatus === 'taken') {
+      setError("Pehle ek valid aur available username toh chun le bhai!");
+      return;
+    }
+
     if (!captchaToken) {
       setError("Pehle verify kar ki tu robot nahi hai! 🤖");
       return;
@@ -72,7 +138,7 @@ export default function Register() {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        captcha_token: captchaToken // Backend mein verify karne ke liye
+        captcha_token: captchaToken
       });
 
       if (response.data.status === "success") {
@@ -149,12 +215,10 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex items-center justify-center p-4 relative overflow-hidden">
       
-      {/* 🌌 Ambient Background Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg h-[400px] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10">
         
-        {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-white font-black text-2xl tracking-widest mb-2 hover:scale-105 transition-transform">
             <Server className="text-blue-500 w-8 h-8" /> NEX<span className="text-blue-500">CLOUD</span>
@@ -164,7 +228,6 @@ export default function Register() {
           </p>
         </div>
 
-        {/* Global Alerts */}
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -182,7 +245,6 @@ export default function Register() {
           )}
         </AnimatePresence>
 
-        {/* Form Container */}
         <div className="bg-white/[0.02] border border-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl relative overflow-hidden">
           
           <AnimatePresence mode="wait">
@@ -193,18 +255,27 @@ export default function Register() {
                 key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" 
                 onSubmit={handleRegister} className="space-y-5"
               >
-                {/* Inputs */}
-                <div className="space-y-2">
+                {/* Username Input */}
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500 group-focus-within:text-blue-500 transition-colors">
                       <User size={18} />
                     </div>
                     <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="SuperAdmin123"
-                      className="w-full bg-[#0a0a0a] border border-white/10 focus:border-blue-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(59,130,246,0.2)]" />
+                      className={`w-full bg-[#0a0a0a] border focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all 
+                        ${usernameStatus === 'invalid' || usernameStatus === 'taken' ? 'border-red-500 focus:border-red-500' : 
+                          usernameStatus === 'available' ? 'border-green-500 focus:border-green-500' : 'border-white/10 focus:border-blue-500'}`} />
                   </div>
+                  {/* Live Username Feedback */}
+                  {usernameMessage && (
+                    <p className={`text-[11px] font-bold mt-1 ml-1 ${usernameStatus === 'invalid' || usernameStatus === 'taken' ? 'text-red-400' : usernameStatus === 'available' ? 'text-green-400' : 'text-blue-400'}`}>
+                      {usernameMessage}
+                    </p>
+                  )}
                 </div>
 
+                {/* Email Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Email Address</label>
                   <div className="relative group">
@@ -216,6 +287,7 @@ export default function Register() {
                   </div>
                 </div>
 
+                {/* Password Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Password</label>
                   <div className="relative group">
@@ -257,7 +329,7 @@ export default function Register() {
                   />
                 </div>
 
-                <button type="submit" disabled={isLoading || !isAgreed} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+                <button type="submit" disabled={isLoading || !isAgreed || usernameStatus === 'invalid' || usernameStatus === 'taken' || usernameStatus === 'checking'} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]">
                   {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Request Access <ArrowRight size={18} /></>}
                 </button>
 
@@ -331,4 +403,4 @@ export default function Register() {
       </div>
     </div>
   );
-}
+                  }
