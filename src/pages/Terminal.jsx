@@ -4,17 +4,22 @@ import {
   Server, ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw, 
   RefreshCcw, Box, Cpu, CircleDot, GitBranch, Trash2, DownloadCloud, AlertTriangle 
 } from 'lucide-react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+// 🔥 FIX: useLocation import karna zaroori tha navigation state padhne ke liye!
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
 
 export default function Terminal() {
   const { appName } = useParams(); 
   const navigate = useNavigate();
+  const location = useLocation(); 
   const [appDetails, setAppDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiKey, setApiKey] = useState("");
   
+  // 🔥 SMART INITIAL STATE: Agar naya deploy (redirect hoke aaya hai) toh seedha BUILD logs dikhao
+  const [logMode, setLogMode] = useState(location.state?.isNewDeploy ? 'build' : 'runtime'); 
+
   // Terminal States
   const [logs, setLogs] = useState([]);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -25,7 +30,7 @@ export default function Terminal() {
   // Auto-Deploy & Update States
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [isToggleLoading, setIsToggleLoading] = useState(false);
-  const [showUpdatePopup, setShowUpdatePopup] = useState(false); // 🔥 NAYA: Popup ke liye
+  const [showUpdatePopup, setShowUpdatePopup] = useState(false); 
 
   // 1. Fetch App Details
   useEffect(() => {
@@ -52,12 +57,12 @@ export default function Terminal() {
           setAppDetails(currentApp);
           setAutoDeploy(currentApp.auto_deploy !== false); 
           
-          // 🔥 NAYA: Agar DB mein update_pending True hai, toh popup dikhao!
           if (currentApp.update_pending) {
             setShowUpdatePopup(true);
           }
 
-          connectWebSocket(currentApp); 
+          // Connection logic ab 'logMode' parameter based chalegi
+          connectWebSocket(currentApp, logMode); 
         } else {
           setLogs(["❌ App not found in your account!"]);
         }
@@ -69,61 +74,91 @@ export default function Terminal() {
     }
   };
 
-  // 2. Connect Live Logs (WebSocket)
-  const connectWebSocket = (app) => {
+  // 2. 🔥 SMART WEBSOCKET LOGIC (Handles both Build & Runtime)
+  const connectWebSocket = (app, mode = logMode) => {
     if (wsRef.current) wsRef.current.close(); 
     
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
-    const wsUrl = `${wsBaseUrl}/ws/stream/${appName}?use_docker=${app.use_docker ? 'true' : 'false'}`;
+    const username = localStorage.getItem("cloud_username") || "user";
     
-    setLogs([`> Starting connection to ${appName} logs pipe...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
+    let wsUrl = "";
+    
+    if (mode === 'build') {
+      wsUrl = `${wsBaseUrl}/ws/build-stream/${username}/${appName}`;
+      setLogs([`> 🏗️ INITIALIZING LIVE BUILD ENGINE FOR [${appName}]...`, `> Connecting to secure pipeline...`]);
+    } else {
+      wsUrl = `${wsBaseUrl}/ws/stream/${appName}?use_docker=${app.use_docker ? 'true' : 'false'}`;
+      setLogs([`> 📡 CONNECTING TO RUNTIME LOGS [${appName}]...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
+    }
     
     const ws = new WebSocket(wsUrl);
-    ws.onmessage = (event) => setLogs((prev) => [...prev, event.data]);
-    ws.onerror = () => setLogs((prev) => [...prev, "❌ WebSocket Connection Error. Engine unavailable."]);
-    ws.onclose = () => setLogs((prev) => [...prev, "🔴 Connection closed."]);
+    
+    ws.onmessage = (event) => {
+      const text = event.data;
+      setLogs((prev) => [...prev, text]);
+
+      // 🧠 HOLLYWOOD MAGIC: Auto Switch to Runtime when build finishes!
+      if (mode === 'build' && (text.includes('NEX_CLOUD_BUILD_COMPLETE') || text.includes('NEX_CLOUD_BUILD_FAILED'))) {
+        setTimeout(() => {
+          setLogs(prev => [...prev, "", "> 🔄 Build process finished. Auto-switching to runtime logs in 3 seconds..."]);
+          setTimeout(() => {
+            switchLogMode('runtime', app);
+          }, 3000);
+        }, 1000);
+      }
+    };
+    
+    ws.onerror = () => setLogs((prev) => [...prev, `❌ WebSocket Error in ${mode.toUpperCase()} mode.`]);
+    ws.onclose = () => setLogs((prev) => [...prev, `🔴 ${mode.toUpperCase()} Stream Disconnected.`]);
     
     wsRef.current = ws;
+  };
+
+  // 🔥 Manual Tab Switcher
+  const switchLogMode = (newMode, app = appDetails) => {
+    if (!app) return;
+    setLogMode(newMode);
+    setLogs([]); // Screen saaf kar do
+    connectWebSocket(app, newMode);
   };
 
   useEffect(() => {
     if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // 3. Handle Actions (Start, Stop, Restart, Clear Logs, Git Pull)
+  // 3. Handle Actions
   const handleAction = async (type) => {
     setActionType(type); 
     setIsActionLoading(true);
     
-    // Agar popup khula hai aur hum pull kar rahe hain, toh popup band kar do
     if (type === 'git_pull') setShowUpdatePopup(false);
 
-    setLogs(prev => [...prev, `> Executing command: [${type.toUpperCase()}] ...`]);
-    
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      
-      // Redeploy ko restart mein map karo, baki same bhejo
-      const backendAction = type === 'redeploy' ? 'restart' : type;
+      const backendAction = type === 'redeploy' ? 'reset' : type;
 
+      // Auto-switch to BUILD logs if we are pulling code or resetting
+      if (backendAction === 'reset' || backendAction === 'git_pull') {
+        switchLogMode('build');
+      } 
+
+      // 🚀 Fire the background request (will not get stuck!)
       await axios.post(`${API_URL}/api/action`, { 
         app_name: appName, 
         action: backendAction 
       }, { headers: { "x-api-key": apiKey } });
       
-      // 🔥 NAYA: Agar Clear Logs tha, toh local logs bhi saaf kar do
-      if (type === 'clear_logs') {
+      if (backendAction === 'clear_logs') {
         setLogs([`✅ System logs flushed successfully for ${appName}.`]);
-      } else {
-        setLogs(prev => [...prev, `✅ Action '${type}' triggered successfully.`]);
       }
 
+      // Hide loading screen almost instantly because backend is running in background!
       setTimeout(() => {
         fetchAppDetails(apiKey);
         setIsActionLoading(false);
         setActionType("");
-      }, 1500); 
+      }, 1000); 
       
     } catch (err) {
       setLogs(prev => [...prev, `❌ Action failed: ${err.response?.data?.detail || err.message}`]);
@@ -158,12 +193,11 @@ export default function Terminal() {
     return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-purple-500 animate-pulse font-mono tracking-widest uppercase">Initializing Terminal Interface...</div>;
   }
 
-  // Helper for Loading Text
   const getLoadingText = () => {
     if (actionType === 'start') return 'IGNITING SYSTEM';
     if (actionType === 'stop') return 'SHUTTING DOWN';
     if (actionType === 'restart') return 'RESTARTING ENGINE';
-    if (actionType === 'redeploy') return 'PULLING & REDEPLOYING';
+    if (actionType === 'redeploy') return 'INITIALIZING BUILD';
     if (actionType === 'clear_logs') return 'SWEEPING LOGS';
     if (actionType === 'git_pull') return 'FETCHING NEW CODE';
     return 'PROCESSING';
@@ -173,13 +207,11 @@ export default function Terminal() {
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex flex-col relative overflow-hidden">
       <Background />
       
-      {/* 🚨 NAYA: GITHUB UPDATE POPUP */}
+      {/* 🚨 GITHUB UPDATE POPUP */}
       <AnimatePresence>
         {showUpdatePopup && (
           <motion.div 
-            initial={{ opacity: 0, y: -50 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: -50 }} 
+            initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} 
             className="absolute top-20 left-1/2 -translate-x-1/2 z-[90] w-[90%] max-w-md bg-[#0a0a0a]/90 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-5 shadow-[0_0_40px_rgba(59,130,246,0.15)]"
           >
             <div className="flex items-start gap-4">
@@ -190,16 +222,10 @@ export default function Terminal() {
                 <h3 className="text-white font-bold text-lg mb-1">Update Available!</h3>
                 <p className="text-gray-400 text-sm mb-4">A new push was detected on your GitHub repository. Since Auto-Deploy is OFF, manual approval is required.</p>
                 <div className="flex gap-3">
-                  <button 
-                    onClick={() => handleAction('git_pull')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 rounded-lg transition-colors shadow-lg"
-                  >
+                  <button onClick={() => handleAction('git_pull')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 rounded-lg transition-colors shadow-lg">
                     Pull & Deploy
                   </button>
-                  <button 
-                    onClick={() => setShowUpdatePopup(false)}
-                    className="px-4 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-bold py-2 rounded-lg transition-colors border border-white/5"
-                  >
+                  <button onClick={() => setShowUpdatePopup(false)} className="px-4 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-bold py-2 rounded-lg transition-colors border border-white/5">
                     Dismiss
                   </button>
                 </div>
@@ -209,13 +235,10 @@ export default function Terminal() {
         )}
       </AnimatePresence>
 
-      {/* 🔥 FULL SCREEN ACTION LOADING OVERLAY */}
+      {/* 🔥 OVERLAY (Ab bas ek second ke liye aayega) */}
       <AnimatePresence>
         {isActionLoading && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center">
             <div className="flex flex-col items-center">
               <RotateCw size={48} className="text-purple-500 animate-spin mb-4 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]" />
               <div className="text-purple-400 font-mono text-xl font-bold tracking-[0.3em] uppercase animate-pulse">
@@ -244,23 +267,17 @@ export default function Terminal() {
                     {appDetails.use_docker ? <Cpu size={12}/> : <Box size={12}/>} 
                     {appDetails.use_docker ? 'Docker' : 'PM2'}
                   </span>
-                  
                   <span className={`flex items-center gap-1 ${appDetails.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>
                     <CircleDot size={10} className={appDetails.status === 'online' ? 'animate-pulse' : ''} />
                     {appDetails.status || 'Unknown'}
                   </span>
-
                   <div className="w-px h-3 bg-white/20 hidden sm:block"></div>
-
                   {/* ⚙️ AUTO-DEPLOY TOGGLE */}
                   <div className="flex items-center gap-2 ml-2 sm:ml-0 cursor-pointer" onClick={handleToggleAutoDeploy}>
                     <span className={`flex items-center gap-1 transition-colors ${autoDeploy ? 'text-blue-400' : 'text-gray-500'}`}>
                       <GitBranch size={12} /> Auto-Deploy
                     </span>
-                    <button 
-                      disabled={isToggleLoading}
-                      className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${autoDeploy ? 'bg-blue-600' : 'bg-gray-600'}`}
-                    >
+                    <button disabled={isToggleLoading} className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${autoDeploy ? 'bg-blue-600' : 'bg-gray-600'}`}>
                       <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${autoDeploy ? 'translate-x-4' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -280,14 +297,10 @@ export default function Terminal() {
             <button onClick={() => handleAction('stop')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-sm font-bold disabled:opacity-50">
               <Square size={16} className="fill-red-400/20"/> <span className="hidden sm:inline">Stop</span>
             </button>
-            
             <div className="w-px h-6 bg-white/10 mx-1"></div>
-            
-            {/* ⬇️ NAYA: Manual Git Pull Button */}
             <button onClick={() => handleAction('git_pull')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-sm font-bold disabled:opacity-50" title="Manually pull latest code">
               <DownloadCloud size={16}/> <span className="hidden sm:inline">Pull Code</span>
             </button>
-            
             <button onClick={() => handleAction('redeploy')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 hidden sm:flex items-center gap-2 text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors text-sm font-bold disabled:opacity-50" title="Force reinstall requirements & deploy">
               <RefreshCcw size={16}/> Reset
             </button>
@@ -299,44 +312,71 @@ export default function Terminal() {
       <div className="flex-1 p-2 sm:p-4 flex flex-col min-h-0 z-10">
         <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
           
-          {/* Mac-style Window Header */}
-          <div className="h-10 bg-black/50 border-b border-white/5 flex items-center justify-between px-4 shrink-0">
+          {/* Mac-style Window Header with 📡 TABS */}
+          <div className="h-12 bg-black/50 border-b border-white/5 flex items-center justify-between px-4 shrink-0 overflow-x-auto">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-              <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-              <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-              <span className="text-[10px] sm:text-xs text-gray-500 font-mono ml-4 tracking-widest hidden sm:inline-block">root@nex-cloud:~/{appName}</span>
+              <div className="w-3 h-3 rounded-full bg-red-500/80 hidden sm:block"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-500/80 hidden sm:block"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500/80 hidden sm:block"></div>
+              
+              {/* 🔥 TABS START */}
+              <div className="flex items-center gap-2 sm:ml-4 p-1 bg-white/5 rounded-lg">
+                <button 
+                  onClick={() => switchLogMode('runtime')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold font-mono tracking-widest transition-all ${logMode === 'runtime' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                >
+                  📡 RUNTIME
+                </button>
+                <button 
+                  onClick={() => switchLogMode('build')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold font-mono tracking-widest transition-all ${logMode === 'build' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                >
+                  🏗️ BUILD LOGS
+                </button>
+              </div>
             </div>
 
-            {/* 🗑️ NAYA: Clear Logs Button */}
             <button 
               onClick={() => handleAction('clear_logs')} 
-              disabled={isActionLoading}
-              title="Clear PM2 Logs"
-              className="flex items-center gap-2 px-3 py-1 bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-md transition-colors font-mono text-xs"
+              disabled={isActionLoading || logMode === 'build'}
+              title={logMode === 'build' ? "Cannot flush build logs" : "Clear PM2 Logs"}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors font-mono text-xs font-bold ${logMode === 'build' ? 'opacity-30 cursor-not-allowed text-gray-600' : 'bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400'}`}
             >
               <Trash2 size={14} /> <span className="hidden sm:inline">Flush Logs</span>
             </button>
           </div>
 
           {/* Logs Area */}
-          <div className="flex-1 p-4 overflow-y-auto font-mono text-[13px] sm:text-sm text-green-400/90 leading-relaxed tracking-wide scrollbar-thin scrollbar-thumb-white/10">
+          <div className="flex-1 p-4 overflow-y-auto font-mono text-[13px] sm:text-sm leading-relaxed tracking-wide scrollbar-thin scrollbar-thumb-white/10">
             {logs.length === 0 ? (
               <div className="text-gray-600 italic">Waiting for incoming logs...</div>
             ) : (
-              logs.map((log, i) => (
-                <div key={i} className={`${log.includes('❌') || log.includes('🔴') ? 'text-red-400' : log.includes('✅') || log.includes('⚙️') ? 'text-blue-400' : ''}`}>
-                  {log}
-                </div>
-              ))
+              logs.map((log, i) => {
+                let colorClass = "text-gray-300";
+                if (logMode === 'build') {
+                  if (log.includes('🚀') || log.includes('✅')) colorClass = "text-green-400 font-bold";
+                  else if (log.includes('❌') || log.includes('🚨')) colorClass = "text-red-400 font-bold";
+                  else if (log.includes('🧹') || log.includes('🐳') || log.includes('📦')) colorClass = "text-blue-400";
+                } else {
+                  if (log.includes('❌') || log.includes('🔴')) colorClass = "text-red-400";
+                  else if (log.includes('✅') || log.includes('⚙️')) colorClass = "text-blue-400";
+                  else colorClass = "text-green-400/90";
+                }
+
+                return (
+                  <div key={i} className={`${colorClass} break-words`}>
+                    {log}
+                  </div>
+                );
+              })
             )}
             <div ref={logsEndRef} />
           </div>
-
-          {/* Blur Overlay at top of terminal for cool effect */}
-          <div className="absolute top-10 left-0 right-0 h-4 bg-gradient-to-b from-[#0a0a0a] to-transparent pointer-events-none"></div>
+          
+          <div className="absolute top-[48px] left-0 right-0 h-4 bg-gradient-to-b from-[#0a0a0a] to-transparent pointer-events-none"></div>
         </div>
       </div>
     </div>
   );
 }
+  
