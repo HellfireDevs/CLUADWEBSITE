@@ -28,12 +28,31 @@ export default function Terminal() {
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isIntentionalClose = useRef(false);
-  const userStoppedRef = useRef(false); // 🔥 Naya Hatiyaar: User ne Stop kiya ya nahi
+  const userStoppedRef = useRef(false); 
+
+  // 🔥 NAYA: Auto-Reconnect Toggle State (Default OFF, Persists in localStorage)
+  const [autoReconnect, setAutoReconnect] = useState(() => {
+    return localStorage.getItem("auto_reconnect_logs") === "true"; // Default False
+  });
+  const autoReconnectRef = useRef(autoReconnect); // WebSocket closure mein fresh value ke liye
 
   // Auto-Deploy & Update States
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [isToggleLoading, setIsToggleLoading] = useState(false);
   const [showUpdatePopup, setShowUpdatePopup] = useState(false); 
+
+  // Toggle Handler
+  const handleToggleAutoReconnect = () => {
+    const newVal = !autoReconnect;
+    setAutoReconnect(newVal);
+    autoReconnectRef.current = newVal;
+    localStorage.setItem("auto_reconnect_logs", newVal);
+
+    // Agar ON kiya aur connection kata hua hai, toh turant connect maar do
+    if (newVal && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+      connectWebSocket(appDetails, logMode, true);
+    }
+  };
 
   // 1. Fetch App Details
   useEffect(() => {
@@ -67,9 +86,11 @@ export default function Terminal() {
             setShowUpdatePopup(true);
           }
           
-          // 🔥 FIX: Agar app pehle se stopped hai (offline) toh auto-reconnect band rakho
-          if (currentApp.status === 'offline') {
+          // 🔥 FIX: Jab page refresh ho, toh check karo ki app band toh nahi padi hai
+          if (['offline', 'stopped', 'errored'].includes(currentApp.status)) {
             userStoppedRef.current = true;
+          } else {
+            userStoppedRef.current = false;
           }
 
           connectWebSocket(currentApp, logMode, false); 
@@ -134,10 +155,15 @@ export default function Terminal() {
 
     ws.onclose = () => {
       if (!isIntentionalClose.current) {
-        // 🔥 THE MAGIC BRAKE: Agar user ne Stop dabaya hai, toh reconnect mat kar!
         if (userStoppedRef.current) {
           setLogs((prev) => [...prev, `🔴 App is stopped. Live stream paused.`]);
           return; 
+        }
+
+        // 🔥 THE TOGGLE BRAKE: Agar Auto-Reconnect OFF hai toh wahi ruk jaayega
+        if (!autoReconnectRef.current) {
+          setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-Reconnect is OFF.`]);
+          return;
         }
 
         setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-reconnecting in 3s...`]);
@@ -168,11 +194,10 @@ export default function Terminal() {
     setActionType(type); 
     setIsActionLoading(true);
     
-    // 🔥 THE ACCELERATOR: Action ke hisaab se flag set karo
     if (type === 'stop') {
-      userStoppedRef.current = true; // Stop dabaya, flag ON
+      userStoppedRef.current = true; 
     } else if (['start', 'restart', 'redeploy', 'git_pull'].includes(type)) {
-      userStoppedRef.current = false; // Start/Restart dabaya, flag OFF
+      userStoppedRef.current = false; 
     }
 
     if (type === 'git_pull') setShowUpdatePopup(false);
@@ -199,7 +224,6 @@ export default function Terminal() {
         setIsActionLoading(false);
         setActionType("");
         
-        // 🔥 THE KICKSTART: Agar action start/restart tha aur connection toot chuka hai, toh naya marenge
         if (['start', 'restart', 'reset', 'git_pull'].includes(type) && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
            connectWebSocket(appDetails, logMode, true);
         }
@@ -384,14 +408,32 @@ export default function Terminal() {
               </div>
             </div>
 
-            <button 
-              onClick={() => handleAction('clear_logs')} 
-              disabled={isActionLoading || logMode === 'build'}
-              title={logMode === 'build' ? "Cannot flush build logs" : "Clear PM2 Logs"}
-              className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md transition-colors font-mono text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap ${logMode === 'build' ? 'opacity-30 cursor-not-allowed text-gray-600' : 'bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400'}`}
-            >
-              <Trash2 size={14} className="shrink-0"/> <span className="hidden sm:inline">Flush Logs</span>
-            </button>
+            {/* 🔥 NAYA: AUTO-RECONNECT TOGGLE & FLUSH LOGS */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              
+              {/* Auto Reconnect Switch */}
+              <div 
+                onClick={handleToggleAutoReconnect}
+                className="flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors"
+                title="Auto-Reconnect WebSocket if disconnected"
+              >
+                <span className={`text-[10px] sm:text-xs font-bold font-mono tracking-widest ${autoReconnect ? 'text-green-400' : 'text-gray-500'}`}>
+                  RECONNECT
+                </span>
+                <button type="button" className={`relative inline-flex h-3 w-6 items-center rounded-full transition-colors focus:outline-none ${autoReconnect ? 'bg-green-500' : 'bg-gray-600'}`}>
+                  <span className={`inline-block h-2 w-2 transform rounded-full bg-white transition-transform ${autoReconnect ? 'translate-x-3.5' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <button 
+                onClick={() => handleAction('clear_logs')} 
+                disabled={isActionLoading || logMode === 'build'}
+                title={logMode === 'build' ? "Cannot flush build logs" : "Clear PM2 Logs"}
+                className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md transition-colors font-mono text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap ${logMode === 'build' ? 'opacity-30 cursor-not-allowed text-gray-600' : 'bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400'}`}
+              >
+                <Trash2 size={14} className="shrink-0"/> <span className="hidden sm:inline">Flush Logs</span>
+              </button>
+            </div>
           </div>
 
           {/* Logs Area */}
