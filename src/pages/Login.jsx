@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, User, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Server, User, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
 import { Turnstile } from '@marsidev/react-turnstile'; // 🛡️ CLOUDFLARE TURNSTILE IMPORT
@@ -22,7 +22,7 @@ export default function Login() {
   const [captchaToken, setCaptchaToken] = useState(null);
 
   const [formData, setFormData] = useState({
-    username: '',
+    username: '', // Backend payload ko yahi naam chahiye, par isme Email bhi aayega
     password: ''
   });
 
@@ -62,7 +62,7 @@ export default function Login() {
     e.preventDefault();
     
     if (!formData.username || !formData.password) {
-      setError("Bhai, username aur password dono daal!");
+      setError("Bhai, username/email aur password dono daal!");
       return;
     }
 
@@ -79,9 +79,9 @@ export default function Login() {
       const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       
       const response = await axios.post(`${API_URL}/auth/login`, {
-        username: formData.username,
+        username: formData.username, // Ye email bhi ho sakta hai, backend smart hai
         password: formData.password,
-        captcha_token: captchaToken // Backend mein verify karne ke liye
+        captcha_token: captchaToken 
       });
 
       if (response.data.status === "success") {
@@ -166,19 +166,20 @@ export default function Login() {
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-5">
           
-          {/* Username Input */}
+          {/* 🔥 SMART Username/Email Input */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username</label>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username or Email</label>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500 group-focus-within:text-purple-500 transition-colors">
-                <User size={18} />
+                {/* 🪄 JADOO: @ type karte hi Mail icon ban jayega */}
+                {formData.username.includes('@') ? <Mail size={18} /> : <User size={18} />}
               </div>
               <input 
                 type="text" 
                 name="username"
                 value={formData.username}
                 onChange={handleChange}
-                placeholder="Enter your username"
+                placeholder="admin123 or user@gmail.com"
                 className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]"
               />
             </div>
