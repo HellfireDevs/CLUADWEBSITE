@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Server, Terminal, GitBranch, Zap, Activity, Lock, Cpu, Rocket, ChevronDown } from 'lucide-react';
+// 🔥 FIX: Yahan 'ArrowRight' missing tha, ab daal diya hai!
+import { Server, Terminal, GitBranch, Zap, Activity, Lock, Cpu, Rocket, ChevronDown, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Background from '../components/Background';
 
@@ -223,4 +224,3 @@ export default function Home() {
     </div>
   );
 }
-
