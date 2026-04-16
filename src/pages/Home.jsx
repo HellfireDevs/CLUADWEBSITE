@@ -1,6 +1,6 @@
 import React from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { Server, Terminal, GitBranch, Zap, Activity, Lock, Cpu, Rocket, ChevronDown, Code2, Database, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Server, Terminal, GitBranch, Zap, Activity, Lock, Cpu, Rocket, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Background from '../components/Background';
 
@@ -39,7 +39,7 @@ const Navbar = () => (
   </nav>
 );
 
-const FeatureCard = ({ icon: Icon, title, desc, delay }) => (
+const FeatureCard = ({ icon: Icon, title, desc }) => (
   <motion.div 
     variants={fadeInUp}
     className="relative group bg-[#0a0a0a]/80 backdrop-blur-md border border-white/5 p-8 rounded-3xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2"
@@ -68,9 +68,6 @@ const StatBox = ({ value, label }) => (
 );
 
 export default function Home() {
-  const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 1], [0, 200]);
-
   return (
     <div className="text-gray-200 min-h-screen w-full overflow-x-hidden font-sans relative selection:bg-purple-500/30 bg-[#020202]">
       <Background />
@@ -85,10 +82,10 @@ export default function Home() {
         
         {/* 🚀 HERO SECTION */}
         <section className="relative flex flex-col justify-center items-center text-center px-6 pt-40 pb-32 min-h-screen">
-          <motion.div style={{ y }} className="absolute inset-0 pointer-events-none opacity-20">
+          <div className="absolute inset-0 pointer-events-none opacity-20">
             {/* Minimal Grid Background pattern for tech feel */}
             <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-          </motion.div>
+          </div>
 
           <motion.div
             className="mb-8 flex items-center gap-3 bg-purple-500/10 border border-purple-500/30 text-purple-300 px-5 py-2 rounded-full text-xs uppercase tracking-widest font-bold backdrop-blur-md shadow-[0_0_20px_rgba(168,85,247,0.2)]"
@@ -141,14 +138,14 @@ export default function Home() {
         {/* 🚀 TECH MARQUEE (Moving Banner) */}
         <div className="w-full py-6 border-y border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md overflow-hidden flex whitespace-nowrap mb-32">
           <div className="flex gap-16 items-center animate-marquee opacity-50">
-             {/* Duplicate items to create infinite loop effect */}
-             {[...Array(2)].map((_, i) => (
+             {/* Simple SAFE Icons use kiye hain yahan */}
+             {[...Array(3)].map((_, i) => (
                 <React.Fragment key={i}>
-                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Code2/> PYTHON 3.10</span>
+                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Terminal/> PYTHON 3.10</span>
                   <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Server/> NODE.JS</span>
                   <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Cpu/> PM2 ENGINE</span>
-                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Database/> DOCKER</span>
-                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Shield/> FASTAPI</span>
+                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Lock/> DOCKER</span>
+                  <span className="text-xl font-black tracking-widest text-gray-500 uppercase flex items-center gap-3"><Zap/> FASTAPI</span>
                 </React.Fragment>
              ))}
           </div>
