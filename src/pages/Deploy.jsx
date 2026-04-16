@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🛠️ Trash2 imported
-import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket, Trash2, Plus } from 'lucide-react';
+import { Server, Folder, Terminal, Lock, Play, Cpu, ArrowRight, ArrowLeft, CheckCircle, Loader2, AlertCircle, Box, Search, Rocket, Trash2, Plus, ShieldAlert } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -27,13 +26,13 @@ export default function Deploy() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
 
-  // Form State
+  // Form State (🔥 NAYA: engine mode add kiya teeno APIs ke liye)
   const [formData, setFormData] = useState({
     app_name: '',       
     repo_url: '',       
     repo_name: '',      
-    envPairs: [{ key: '', value: '' }], // 🔥 Dynamic Array for ENV Variables
-    use_docker: false,  
+    envPairs: [{ key: '', value: '' }], 
+    engine: 'ppam2',    // Options: 'ppam2', 'vip_pm2', 'docker'
     start_cmd: ''       
   });
 
@@ -101,8 +100,7 @@ export default function Deploy() {
   };
 
   const handleChange = (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     if (error) setError("");
   };
 
@@ -136,10 +134,11 @@ export default function Deploy() {
     setStep(step - 1);
   };
 
-  // Deploy Handler
+  // 🔥 DEPLOY HANDLER (SMART ROUTING FOR 3 MODES)
   const handleDeploy = async () => {
-    if (!formData.use_docker && !formData.start_cmd) {
-      setError("PM2 requires a Start Command (e.g., 'python3 main.py')!");
+    // Basic validation based on engine type
+    if ((formData.engine === 'ppam2' || formData.engine === 'vip_pm2') && !formData.start_cmd) {
+      setError("This engine requires a Start Command (e.g., 'python3 main.py')!");
       return;
     }
 
@@ -151,6 +150,7 @@ export default function Deploy() {
     try {
       const headers = { "x-api-key": API_KEY };
 
+      // 1. Inject ENV Variables
       const generatedEnvContent = formData.envPairs
         .filter(pair => pair.key.trim() !== '')
         .map(pair => `${pair.key.trim()}=${pair.value.trim()}`)
@@ -163,22 +163,35 @@ export default function Deploy() {
         }, { headers }).catch(err => console.log("Env injection skip/fail", err));
       }
 
+      // 2. Select API Endpoint and Payload based on Engine
+      let endpoint = "";
       const payload = {
         repo_url: formData.repo_url,
         repo_name: formData.repo_name,
         app_name: formData.app_name,
-        use_docker: formData.use_docker,
-        start_cmd: formData.start_cmd
       };
 
-      const response = await axios.post(`${API_URL}/api/deploy-new`, payload, { headers });
+      if (formData.engine === 'ppam2') {
+        endpoint = "/api/deploy-ppam2";
+        payload.start_cmd = formData.start_cmd;
+      } else if (formData.engine === 'vip_pm2') {
+        endpoint = "/api/deploy-vip-pm2";
+        payload.start_cmd = formData.start_cmd;
+      } else if (formData.engine === 'docker') {
+        endpoint = "/api/deploy-docker";
+        // Docker engine doesn't need start_cmd from UI
+      }
+
+      // 3. Fire the Request! 🚀
+      const response = await axios.post(`${API_URL}${endpoint}`, payload, { headers });
 
       if (response.data.status === "success") {
-        // 🔥 FIX: Redirect seedha naye Terminal page par jayega instead of Dashboard
         setSuccess("Deployment Initiated! Redirecting to Terminal...");
+        // Seedha terminal pe bhej do live logs dekhne ke liye!
         setTimeout(() => navigate(`/app/${formData.app_name}`), 3000);
       }
     } catch (err) {
+      // Backend se error aayega agar VIP access nahi hoga ya command galat hogi
       setError(err.response?.data?.detail || "Deployment failed! Backend error.");
     } finally {
       setIsLoading(false);
@@ -401,43 +414,76 @@ export default function Deploy() {
               </motion.div>
             )}
 
-            {/* ================= STEP 3: EXECUTION ENGINE ================= */}
+            {/* ================= STEP 3: EXECUTION ENGINE (🔥 THE NEW 3 MODES) ================= */}
             {step === 3 && (
               <motion.div key="step3" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Option 1: PPAM2 (Public) */}
                   <div 
-                    onClick={() => setFormData({...formData, use_docker: false})}
-                    className={`cursor-pointer p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 text-center ${!formData.use_docker ? 'bg-purple-500/10 border-purple-500' : 'bg-[#0a0a0a] border-white/10 hover:border-white/30'}`}
+                    onClick={() => setFormData({...formData, engine: 'ppam2'})}
+                    className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 text-center relative overflow-hidden ${formData.engine === 'ppam2' ? 'bg-purple-500/10 border-purple-500' : 'bg-[#0a0a0a] border-white/10 hover:border-white/30'}`}
                   >
-                    <Terminal className={!formData.use_docker ? 'text-purple-400' : 'text-gray-500'} size={32} />
+                    {formData.engine === 'ppam2' && <div className="absolute top-0 right-0 bg-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">Recommended</div>}
+                    <Terminal className={formData.engine === 'ppam2' ? 'text-purple-400' : 'text-gray-500'} size={28} />
                     <div>
-                      <h4 className={`font-bold ${!formData.use_docker ? 'text-white' : 'text-gray-400'}`}>PM2 Engine</h4>
-                      <p className="text-xs text-gray-500 mt-1">Standard Node/Python</p>
+                      <h4 className={`font-bold text-sm ${formData.engine === 'ppam2' ? 'text-white' : 'text-gray-400'}`}>Public PM2</h4>
+                      <p className="text-[10px] text-gray-500 mt-1">Dockerized & Safe</p>
                     </div>
                   </div>
 
+                  {/* Option 2: VIP PM2 (Admin) */}
                   <div 
-                    onClick={() => setFormData({...formData, use_docker: true})}
-                    className={`cursor-pointer p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 text-center ${formData.use_docker ? 'bg-blue-500/10 border-blue-500' : 'bg-[#0a0a0a] border-white/10 hover:border-white/30'}`}
+                    onClick={() => setFormData({...formData, engine: 'vip_pm2'})}
+                    className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 text-center relative ${formData.engine === 'vip_pm2' ? 'bg-red-500/10 border-red-500' : 'bg-[#0a0a0a] border-white/10 hover:border-white/30'}`}
                   >
-                    <Cpu className={formData.use_docker ? 'text-blue-400' : 'text-gray-500'} size={32} />
+                    <div className="absolute top-2 right-2"><Lock size={12} className={formData.engine === 'vip_pm2' ? 'text-red-400' : 'text-gray-600'} /></div>
+                    <Server className={formData.engine === 'vip_pm2' ? 'text-red-400' : 'text-gray-500'} size={28} />
                     <div>
-                      <h4 className={`font-bold ${formData.use_docker ? 'text-white' : 'text-gray-400'}`}>Docker Engine</h4>
-                      <p className="text-xs text-gray-500 mt-1">Containerized Setup</p>
+                      <h4 className={`font-bold text-sm ${formData.engine === 'vip_pm2' ? 'text-white' : 'text-gray-400'}`}>VIP PM2</h4>
+                      <p className="text-[10px] text-gray-500 mt-1">Raw Server (Admin Only)</p>
+                    </div>
+                  </div>
+
+                  {/* Option 3: Pure Docker */}
+                  <div 
+                    onClick={() => setFormData({...formData, engine: 'docker'})}
+                    className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 text-center ${formData.engine === 'docker' ? 'bg-blue-500/10 border-blue-500' : 'bg-[#0a0a0a] border-white/10 hover:border-white/30'}`}
+                  >
+                    <Cpu className={formData.engine === 'docker' ? 'text-blue-400' : 'text-gray-500'} size={28} />
+                    <div>
+                      <h4 className={`font-bold text-sm ${formData.engine === 'docker' ? 'text-white' : 'text-gray-400'}`}>Pure Docker</h4>
+                      <p className="text-[10px] text-gray-500 mt-1">Custom Dockerfile</p>
                     </div>
                   </div>
                 </div>
 
-                <AnimatePresence>
-                  {!formData.use_docker && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">PM2 Start Command</label>
+                <AnimatePresence mode="wait">
+                  {/* Show Command Input for PPAM2 and VIP PM2 */}
+                  {(formData.engine === 'ppam2' || formData.engine === 'vip_pm2') && (
+                    <motion.div key="cmd_input" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Start Command</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500"><Play size={18} /></div>
-                        <input type="text" name="start_cmd" value={formData.start_cmd} onChange={handleChange} placeholder="python3 main.py"
+                        <input type="text" name="start_cmd" value={formData.start_cmd} onChange={handleChange} placeholder="e.g., python3 main.py"
                           className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all font-mono text-sm focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]" />
                       </div>
-                      <p className="text-xs text-gray-500 ml-1 mt-1">Make sure the entry file exists in the repo!</p>
+                      {formData.engine === 'vip_pm2' && (
+                        <p className="text-xs text-red-400 ml-1 mt-1 flex items-center gap-1"><ShieldAlert size={12}/> VIP Approval required for raw server access.</p>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Show Info for Docker Mode */}
+                  {formData.engine === 'docker' && (
+                    <motion.div key="docker_info" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3">
+                          <Box className="text-blue-400 shrink-0 mt-0.5" size={18} />
+                          <div>
+                            <h4 className="text-white font-bold text-sm">Custom Dockerfile Required</h4>
+                            <p className="text-gray-400 text-xs mt-1">Your repository must contain a valid <code>Dockerfile</code> in the root directory. Start commands are handled by the container.</p>
+                          </div>
+                        </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -478,4 +524,4 @@ export default function Deploy() {
       </div>
     </div>
   );
-                }
+                        }
