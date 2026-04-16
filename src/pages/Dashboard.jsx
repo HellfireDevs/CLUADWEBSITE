@@ -62,7 +62,7 @@ const PaywallModal = ({ isOpen, onClose, navigate }) => {
                 ))}
               </div>
               
-              <button onClick={() => navigate('/payment')} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-all">
+              <button onClick={() => navigate('/payment', { state: { plan: '49' } })} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-all">
                 Select Starter
               </button>
             </div>
@@ -93,7 +93,7 @@ const PaywallModal = ({ isOpen, onClose, navigate }) => {
                 ))}
               </div>
               
-              <button onClick={() => navigate('/payment')} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
+              <button onClick={() => navigate('/payment', { state: { plan: '89' } })} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
                 Deploy with Overlord
               </button>
             </div>
@@ -353,14 +353,42 @@ export default function Dashboard() {
     }
   };
 
+  // 🔥 MAGIC 1: Heartbeat System for Real-time Suspended Check
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+        const key = localStorage.getItem("cloud_api_key");
+        if(!key) return;
+        
+        const response = await axios.get(`${API_URL}/api/profile`, {
+          headers: { "x-api-key": key }
+        });
+
+        // Agar user piche se suspend hua, toh turant dhakka maaro!
+        if (response.data.data.is_suspended) {
+          localStorage.setItem("cloud_is_suspended", "true");
+          navigate('/suspended');
+        }
+      } catch (err) {
+        // Backend agar 403 bhej de
+        if (err.response?.status === 403) {
+           localStorage.setItem("cloud_is_suspended", "true");
+           navigate('/suspended');
+        }
+      }
+    };
+
+    // Har 20 second me check karega 
+    const interval = setInterval(checkStatus, 20000); 
+    return () => clearInterval(interval);
+  }, [navigate]);
+
   const handleLogout = () => {
-    localStorage.removeItem("cloud_api_key");
-    localStorage.removeItem("cloud_username");
-    localStorage.removeItem("cloud_is_premium");
+    localStorage.clear(); // Clear all
     navigate('/login');
   };
 
-  // 🔥 FIX: Redirect to Terminal instead of opening modal
   const openTerminal = (appName) => { 
     navigate(`/app/${appName}`);
   };
@@ -510,4 +538,4 @@ export default function Dashboard() {
       </AnimatePresence>
     </div>
   );
-      }
+                  }
