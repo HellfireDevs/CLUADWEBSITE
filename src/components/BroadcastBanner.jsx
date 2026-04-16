@@ -51,7 +51,8 @@ export default function BroadcastBanner() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -50, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className={`fixed top-0 left-0 w-full ${bgClass} px-4 py-2.5 flex items-center justify-center gap-3 z-[999] shadow-2xl backdrop-blur-md border-b border-white/10`}
+          /* 🔥 FIX: 'fixed left-0' hata kar 'sticky' kar diya! Ab 3 dots nahi chhupenge! */
+          className={`sticky top-0 w-full ${bgClass} px-4 py-2.5 flex items-center justify-center gap-3 z-[999] shadow-2xl backdrop-blur-md border-b border-white/10`}
         >
           {icon}
           <p className="text-sm font-bold tracking-wide text-center">
