@@ -24,7 +24,7 @@ export default function Terminal() {
   const [actionType, setActionType] = useState(""); 
   const logsEndRef = useRef(null);
   
-  // 🔥 FIX 2: WebSocket aur Auto-Reconnect ko control karne ke liye naye Refs
+  // WebSocket aur Auto-Reconnect ko control karne ke liye naye Refs
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isIntentionalClose = useRef(false);
@@ -65,7 +65,7 @@ export default function Terminal() {
           if (currentApp.update_pending) {
             setShowUpdatePopup(true);
           }
-          connectWebSocket(currentApp, logMode); 
+          connectWebSocket(currentApp, logMode, false); // Pehli baar connect
         } else {
           setLogs(["❌ App not found in your account!"]);
         }
@@ -77,8 +77,8 @@ export default function Terminal() {
     }
   };
 
-  // 2. 🔥 SMART WEBSOCKET LOGIC (With Auto-Reconnect)
-  const connectWebSocket = (app, mode = logMode) => {
+  // 2. 🔥 SMART WEBSOCKET LOGIC (Fix: Logs ab udhenge nahi)
+  const connectWebSocket = (app, mode = logMode, isReconnect = false) => {
     // Puraane socket aur timeouts saaf karo
     isIntentionalClose.current = true; 
     if (wsRef.current) {
@@ -98,10 +98,20 @@ export default function Terminal() {
     
     if (mode === 'build') {
       wsUrl = `${wsBaseUrl}/ws/build-stream/${username}/${appName}`;
-      setLogs([`> 🏗️ INITIALIZING LIVE BUILD ENGINE FOR [${appName}]...`, `> Connecting to secure pipeline...`]);
+      // 🔥 FIX: Agar reconnect hai, toh purane logs mat udao
+      if (!isReconnect) {
+        setLogs([`> 🏗️ INITIALIZING LIVE BUILD ENGINE FOR [${appName}]...`, `> Connecting to secure pipeline...`]);
+      } else {
+        setLogs(prev => [...prev, `> 🔄 RECONNECTING TO BUILD STREAM...`]);
+      }
     } else {
       wsUrl = `${wsBaseUrl}/ws/stream/${appName}?use_docker=${app.use_docker ? 'true' : 'false'}`;
-      setLogs([`> 📡 CONNECTING TO RUNTIME LOGS [${appName}]...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
+      // 🔥 FIX: Agar reconnect hai, toh purane logs mat udao
+      if (!isReconnect) {
+        setLogs([`> 📡 CONNECTING TO RUNTIME LOGS [${appName}]...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
+      } else {
+        setLogs(prev => [...prev, `> 🔄 RECONNECTING TO RUNTIME STREAM...`]);
+      }
     }
     
     const ws = new WebSocket(wsUrl);
@@ -110,7 +120,7 @@ export default function Terminal() {
       const text = event.data;
       setLogs((prev) => [...prev, text]);
 
-      // 🔥 FIX 1: Auto-Redirect hata diya. Ab bas message aayega, tab change nahi hoga.
+      // Auto-Redirect hata diya. Ab bas message aayega, tab change nahi hoga.
       if (mode === 'build' && (text.includes('NEX_CLOUD_BUILD_COMPLETE') || text.includes('NEX_CLOUD_BUILD_FAILED'))) {
         setLogs(prev => [...prev, "", "> 🏁 Build process finished! You can now manually switch to RUNTIME logs."]);
       }
@@ -125,7 +135,7 @@ export default function Terminal() {
       if (!isIntentionalClose.current) {
         setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-reconnecting in 3s...`]);
         reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket(app, mode);
+          connectWebSocket(app, mode, true); // 🔥 Yahan isReconnect 'true' bhej rahe hain
         }, 3000);
       }
     };
@@ -137,7 +147,7 @@ export default function Terminal() {
     if (!app) return;
     setLogMode(newMode);
     setLogs([]); 
-    connectWebSocket(app, newMode);
+    connectWebSocket(app, newMode, false); // Tab switch karega toh naya fresh stream aayega
   };
 
   useEffect(() => {
