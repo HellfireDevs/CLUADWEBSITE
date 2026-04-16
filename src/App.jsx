@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Settings, AlertTriangle } from 'lucide-react'; // 🔥 Maintenance screen ke icons
+import { Settings, AlertTriangle } from 'lucide-react'; 
+import axios from 'axios';
 
 // 📦 Importing all pages from 'pages' folder
 import Home from './pages/Home';
@@ -12,17 +13,14 @@ import Deploy from './pages/Deploy';
 import Profile from './pages/Profile';
 import Payment from './pages/Payment';
 import Support from './pages/Support'; 
-import Terminal from './pages/Terminal'; // 🔥 YAHAN TERMINAL IMPORT KIYA HAI
+import Terminal from './pages/Terminal'; 
+
+// 🔥 NAYE COMPONENTS IMPORT KIYE HAIN
+import Suspended from './pages/Suspended';
+import BroadcastBanner from './components/BroadcastBanner';
 
 // ==========================================
-// 🔴 MASTER KILL SWITCH (MAINTENANCE MODE)
-// ==========================================
-// Isko 'true' kar dega toh poori website band ho jayegi aur Maintenance page dikhega.
-// Wapas on karna ho toh 'false' kar dena.
-const MAINTENANCE_MODE = false; 
-
-// ==========================================
-// 🛑 MAINTENANCE SCREEN UI
+// 🛑 MAINTENANCE SCREEN UI (Tera Awesome Design)
 // ==========================================
 const MaintenanceScreen = () => {
   return (
@@ -53,7 +51,6 @@ const MaintenanceScreen = () => {
 // ==========================================
 const RequireAuth = ({ children }) => {
   const apiKey = localStorage.getItem("cloud_api_key");
-  // Agar API key nahi hai, toh seedha Login pe phek do
   return apiKey ? children : <Navigate to="/login" replace />;
 };
 
@@ -62,26 +59,60 @@ const RequireAuth = ({ children }) => {
 // ==========================================
 const RequirePremium = ({ children }) => {
   const isPremium = localStorage.getItem("cloud_is_premium") === "true";
-  
-  // Agar koi smart ban ke /deploy type karta hai aur premium nahi hai:
   if (!isPremium) {
-    // Wapas Dashboard bhejo aur state me showPaywall true kardo taaki modal khul jaye
     return <Navigate to="/dashboard" state={{ showPaywall: true }} replace />;
+  }
+  return children;
+};
+
+// ==========================================
+// 🚫 SUSPENDED GUARD (Kharab users ko block karega)
+// ==========================================
+const RequireActiveAccount = ({ children }) => {
+  const isSuspended = localStorage.getItem("cloud_is_suspended") === "true";
+  // Agar suspended hai, toh seedha Suspended page pe phenk do
+  if (isSuspended) {
+    return <Navigate to="/suspended" replace />;
   }
   return children;
 };
 
 export default function App() {
   
-  // 🔴 AGAR MAINTENANCE MODE ON HAI TOH SEEDHA KICK OUT MARO
-  if (MAINTENANCE_MODE) {
+  // 🔴 DYNAMIC MAINTENANCE MODE LOGIC
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const HARDCODED_MAINTENANCE_MODE = false; // Emergency ke liye manually 'true' kar sakta hai yahan se
+
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+        const response = await axios.get(`${API_URL}/api/admin/system-status`);
+        setIsMaintenance(response.data.maintenance);
+      } catch (err) {
+        console.error("System status check failed.");
+      }
+    };
+
+    checkSystemStatus();
+    // Har 30 seconds mein background mein check karega ki Maintenance lagani hai ya nahi
+    const interval = setInterval(checkSystemStatus, 30000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  // AGAR MAINTENANCE ON HAI (API se ya Hardcode se) TOH SEEDHA KICK OUT MARO
+  if (HARDCODED_MAINTENANCE_MODE || isMaintenance) {
     return <MaintenanceScreen />;
   }
 
   // ✅ NORMAL APP ROUTING
   return (
     <Router>
-      <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-purple-500/30 font-sans">
+      <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-purple-500/30 font-sans relative">
+        
+        {/* 📢 DYNAMIC BROADCAST BANNER (Ye har screen ke top pe dikhega) */}
+        <BroadcastBanner />
+
         <Routes>
           {/* Main Landing Page (Public) */}
           <Route path="/" element={<Home />} />
@@ -92,52 +123,68 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* ========================================== */}
-          {/* 🔒 PROTECTED ROUTES (Sirf Logged-in users ke liye) */}
+          {/* 🔒 PROTECTED & ACTIVE ROUTES */}
           {/* ========================================== */}
           <Route path="/dashboard" element={
             <RequireAuth>
-              <Dashboard />
+              <RequireActiveAccount>
+                <Dashboard />
+              </RequireActiveAccount>
             </RequireAuth>
           } />
           
           <Route path="/profile" element={
             <RequireAuth>
-              <Profile />
+              <RequireActiveAccount>
+                <Profile />
+              </RequireActiveAccount>
             </RequireAuth>
           } />
           
           <Route path="/payment" element={
             <RequireAuth>
-              <Payment />
-            </RequireAuth>
-          } />
-          
-          <Route path="/support" element={
-            <RequireAuth>
-              <Support />
+              <RequireActiveAccount>
+                <Payment />
+              </RequireActiveAccount>
             </RequireAuth>
           } />
 
-          {/* 🔥 NEW: TERMINAL ROUTE (Ab 404 nahi aayega!) */}
           <Route path="/app/:appName" element={
             <RequireAuth>
-              <Terminal />
+              <RequireActiveAccount>
+                <Terminal />
+              </RequireActiveAccount>
             </RequireAuth>
           } />
 
-          {/* ========================================== */}
-          {/* 👑 PREMIUM ONLY ROUTE (Login + Premium dono chahiye) */}
-          {/* ========================================== */}
+          {/* 👑 PREMIUM ONLY ROUTE */}
           <Route path="/deploy" element={
             <RequireAuth>
-              <RequirePremium>
-                <Deploy />
-              </RequirePremium>
+              <RequireActiveAccount>
+                <RequirePremium>
+                  <Deploy />
+                </RequirePremium>
+              </RequireActiveAccount>
             </RequireAuth>
           } />
           
           {/* ========================================== */}
-          {/* 404 Page (Agar koi galat URL daale) */}
+          {/* 🎫 ROUTES ALLOWED EVEN IF SUSPENDED */}
+          {/* ========================================== */}
+          <Route path="/support" element={
+            <RequireAuth>
+              <Support /> {/* Bouncer nahi lagaya taaki user madad maang sake */}
+            </RequireAuth>
+          } />
+
+          <Route path="/suspended" element={
+            <RequireAuth>
+              <Suspended /> {/* Laal Rang Wala Account Suspended Page */}
+            </RequireAuth>
+          } />
+
+          {/* ========================================== */}
+          {/* 404 Page */}
           {/* ========================================== */}
           <Route path="*" element={
             <div className="h-screen flex flex-col items-center justify-center text-center">
