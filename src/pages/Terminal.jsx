@@ -28,6 +28,7 @@ export default function Terminal() {
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isIntentionalClose = useRef(false);
+  const userStoppedRef = useRef(false); // 🔥 Naya Hatiyaar: User ne Stop kiya ya nahi
 
   // Auto-Deploy & Update States
   const [autoDeploy, setAutoDeploy] = useState(true);
@@ -65,7 +66,13 @@ export default function Terminal() {
           if (currentApp.update_pending) {
             setShowUpdatePopup(true);
           }
-          connectWebSocket(currentApp, logMode, false); // Pehli baar connect
+          
+          // 🔥 FIX: Agar app pehle se stopped hai (offline) toh auto-reconnect band rakho
+          if (currentApp.status === 'offline') {
+            userStoppedRef.current = true;
+          }
+
+          connectWebSocket(currentApp, logMode, false); 
         } else {
           setLogs(["❌ App not found in your account!"]);
         }
@@ -77,9 +84,8 @@ export default function Terminal() {
     }
   };
 
-  // 2. 🔥 SMART WEBSOCKET LOGIC (Fix: Logs ab udhenge nahi)
+  // 2. 🔥 SMART WEBSOCKET LOGIC
   const connectWebSocket = (app, mode = logMode, isReconnect = false) => {
-    // Puraane socket aur timeouts saaf karo
     isIntentionalClose.current = true; 
     if (wsRef.current) {
       wsRef.current.close();
@@ -88,7 +94,7 @@ export default function Terminal() {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
-    isIntentionalClose.current = false; // Naye socket ke liye reset
+    isIntentionalClose.current = false; 
 
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
@@ -98,7 +104,6 @@ export default function Terminal() {
     
     if (mode === 'build') {
       wsUrl = `${wsBaseUrl}/ws/build-stream/${username}/${appName}`;
-      // 🔥 FIX: Agar reconnect hai, toh purane logs mat udao
       if (!isReconnect) {
         setLogs([`> 🏗️ INITIALIZING LIVE BUILD ENGINE FOR [${appName}]...`, `> Connecting to secure pipeline...`]);
       } else {
@@ -106,7 +111,6 @@ export default function Terminal() {
       }
     } else {
       wsUrl = `${wsBaseUrl}/ws/stream/${appName}?use_docker=${app.use_docker ? 'true' : 'false'}`;
-      // 🔥 FIX: Agar reconnect hai, toh purane logs mat udao
       if (!isReconnect) {
         setLogs([`> 📡 CONNECTING TO RUNTIME LOGS [${appName}]...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
       } else {
@@ -120,22 +124,25 @@ export default function Terminal() {
       const text = event.data;
       setLogs((prev) => [...prev, text]);
 
-      // Auto-Redirect hata diya. Ab bas message aayega, tab change nahi hoga.
       if (mode === 'build' && (text.includes('NEX_CLOUD_BUILD_COMPLETE') || text.includes('NEX_CLOUD_BUILD_FAILED'))) {
         setLogs(prev => [...prev, "", "> 🏁 Build process finished! You can now manually switch to RUNTIME logs."]);
       }
     };
     
     ws.onerror = () => {
-      // Error hone pe onclose trigger hoga, wahan handle karenge
     };
 
     ws.onclose = () => {
-      // Agar humne khud band nahi kiya (like tab switch), toh zidd karke wapas connect karega
       if (!isIntentionalClose.current) {
+        // 🔥 THE MAGIC BRAKE: Agar user ne Stop dabaya hai, toh reconnect mat kar!
+        if (userStoppedRef.current) {
+          setLogs((prev) => [...prev, `🔴 App is stopped. Live stream paused.`]);
+          return; 
+        }
+
         setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-reconnecting in 3s...`]);
         reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket(app, mode, true); // 🔥 Yahan isReconnect 'true' bhej rahe hain
+          connectWebSocket(app, mode, true); 
         }, 3000);
       }
     };
@@ -147,7 +154,7 @@ export default function Terminal() {
     if (!app) return;
     setLogMode(newMode);
     setLogs([]); 
-    connectWebSocket(app, newMode, false); // Tab switch karega toh naya fresh stream aayega
+    connectWebSocket(app, newMode, false); 
   };
 
   useEffect(() => {
@@ -161,6 +168,13 @@ export default function Terminal() {
     setActionType(type); 
     setIsActionLoading(true);
     
+    // 🔥 THE ACCELERATOR: Action ke hisaab se flag set karo
+    if (type === 'stop') {
+      userStoppedRef.current = true; // Stop dabaya, flag ON
+    } else if (['start', 'restart', 'redeploy', 'git_pull'].includes(type)) {
+      userStoppedRef.current = false; // Start/Restart dabaya, flag OFF
+    }
+
     if (type === 'git_pull') setShowUpdatePopup(false);
 
     try {
@@ -184,6 +198,11 @@ export default function Terminal() {
         fetchAppDetails(apiKey);
         setIsActionLoading(false);
         setActionType("");
+        
+        // 🔥 THE KICKSTART: Agar action start/restart tha aur connection toot chuka hai, toh naya marenge
+        if (['start', 'restart', 'reset', 'git_pull'].includes(type) && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+           connectWebSocket(appDetails, logMode, true);
+        }
       }, 1000); 
       
     } catch (err) {
