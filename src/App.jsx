@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Settings, AlertTriangle } from 'lucide-react'; 
+import { Settings, AlertTriangle, Sun, Moon } from 'lucide-react'; // 🔥 Sun, Moon import kiya
 import axios from 'axios';
 
 // 📦 Importing all pages from 'pages' folder
@@ -15,12 +15,12 @@ import Payment from './pages/Payment';
 import Support from './pages/Support'; 
 import Terminal from './pages/Terminal'; 
 
-// 🔥 NAYE COMPONENTS IMPORT KIYE HAIN
+// 🔥 NAYE COMPONENTS
 import Suspended from './pages/Suspended';
 import BroadcastBanner from './components/BroadcastBanner';
 
 // ==========================================
-// 🛑 MAINTENANCE SCREEN UI (Tera Awesome Design)
+// 🛑 MAINTENANCE SCREEN UI
 // ==========================================
 const MaintenanceScreen = () => {
   return (
@@ -47,16 +47,13 @@ const MaintenanceScreen = () => {
 };
 
 // ==========================================
-// 🛡️ AUTH GUARD (Bina Login ke andar aane nahi dega)
+// 🛡️ GUARDS
 // ==========================================
 const RequireAuth = ({ children }) => {
   const apiKey = localStorage.getItem("cloud_api_key");
   return apiKey ? children : <Navigate to="/login" replace />;
 };
 
-// ==========================================
-// 👑 PREMIUM GUARD (Bina Premium ke Deploy nahi karne dega)
-// ==========================================
 const RequirePremium = ({ children }) => {
   const isPremium = localStorage.getItem("cloud_is_premium") === "true";
   if (!isPremium) {
@@ -65,12 +62,8 @@ const RequirePremium = ({ children }) => {
   return children;
 };
 
-// ==========================================
-// 🚫 SUSPENDED GUARD (Kharab users ko block karega)
-// ==========================================
 const RequireActiveAccount = ({ children }) => {
   const isSuspended = localStorage.getItem("cloud_is_suspended") === "true";
-  // Agar suspended hai, toh seedha Suspended page pe phenk do
   if (isSuspended) {
     return <Navigate to="/suspended" replace />;
   }
@@ -79,10 +72,19 @@ const RequireActiveAccount = ({ children }) => {
 
 export default function App() {
   
-  // 🔴 DYNAMIC MAINTENANCE MODE LOGIC
+  // 🔴 MAINTENANCE STATE
   const [isMaintenance, setIsMaintenance] = useState(false);
-  const HARDCODED_MAINTENANCE_MODE = false; // Emergency ke liye manually 'true' kar sakta hai yahan se
+  const HARDCODED_MAINTENANCE_MODE = false;
 
+  // 🌗 LIGHT/DARK MODE STATE
+  const [isLightMode, setIsLightMode] = useState(localStorage.getItem('cloud_theme') === 'light');
+
+  // Theme Toggle Effect
+  useEffect(() => {
+    localStorage.setItem('cloud_theme', isLightMode ? 'light' : 'dark');
+  }, [isLightMode]);
+
+  // System Status Check Effect
   useEffect(() => {
     const checkSystemStatus = async () => {
       try {
@@ -95,107 +97,90 @@ export default function App() {
     };
 
     checkSystemStatus();
-    // Har 30 seconds mein background mein check karega ki Maintenance lagani hai ya nahi
     const interval = setInterval(checkSystemStatus, 30000); 
     return () => clearInterval(interval);
   }, []);
 
-  // AGAR MAINTENANCE ON HAI (API se ya Hardcode se) TOH SEEDHA KICK OUT MARO
   if (HARDCODED_MAINTENANCE_MODE || isMaintenance) {
     return <MaintenanceScreen />;
   }
 
-  // ✅ NORMAL APP ROUTING
   return (
     <Router>
-      <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-purple-500/30 font-sans relative">
+      {/* 🌗 MAGICAL CSS HACK FOR LIGHT MODE */}
+      <style>{`
+        .theme-light {
+          filter: invert(1) hue-rotate(180deg);
+          background-color: #f8f9fa !important;
+        }
+        /* In images aur buttons ko normal rakhne ke liye wapas invert karte hain */
+        .theme-light img, 
+        .theme-light video, 
+        .theme-light .keep-original {
+          filter: invert(1) hue-rotate(180deg);
+        }
+      `}</style>
+
+      {/* Main Container */}
+      <div className={`min-h-screen bg-[#050505] text-gray-200 selection:bg-purple-500/30 font-sans relative flex flex-col transition-all duration-500 ${isLightMode ? 'theme-light' : ''}`}>
         
-        {/* 📢 DYNAMIC BROADCAST BANNER (Ye har screen ke top pe dikhega) */}
+        {/* 📢 DYNAMIC BROADCAST BANNER */}
         <BroadcastBanner />
 
-        <Routes>
-          {/* Main Landing Page (Public) */}
-          <Route path="/" element={<Home />} />
+        {/* 🌗 FLOATING THEME TOGGLE BUTTON */}
+        <button 
+          onClick={() => setIsLightMode(!isLightMode)}
+          className="fixed bottom-6 right-6 z-[9999] p-4 bg-black/60 backdrop-blur-xl border border-white/10 hover:border-purple-500/50 rounded-full shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:scale-110 transition-all group keep-original"
+          title="Toggle Light/Dark Mode"
+        >
+          {isLightMode ? (
+            <Moon className="text-purple-400 group-hover:rotate-12 transition-transform" size={24} />
+          ) : (
+            <Sun className="text-yellow-400 group-hover:rotate-90 transition-transform" size={24} />
+          )}
+        </button>
 
-          {/* Auth System (Public) */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+        <div className="flex-1">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* ========================================== */}
-          {/* 🔒 PROTECTED & ACTIVE ROUTES */}
-          {/* ========================================== */}
-          <Route path="/dashboard" element={
-            <RequireAuth>
-              <RequireActiveAccount>
-                <Dashboard />
-              </RequireActiveAccount>
-            </RequireAuth>
-          } />
-          
-          <Route path="/profile" element={
-            <RequireAuth>
-              <RequireActiveAccount>
-                <Profile />
-              </RequireActiveAccount>
-            </RequireAuth>
-          } />
-          
-          <Route path="/payment" element={
-            <RequireAuth>
-              <RequireActiveAccount>
-                <Payment />
-              </RequireActiveAccount>
-            </RequireAuth>
-          } />
+            <Route path="/dashboard" element={
+              <RequireAuth><RequireActiveAccount><Dashboard /></RequireActiveAccount></RequireAuth>
+            } />
+            
+            <Route path="/profile" element={
+              <RequireAuth><RequireActiveAccount><Profile /></RequireActiveAccount></RequireAuth>
+            } />
+            
+            <Route path="/payment" element={
+              <RequireAuth><RequireActiveAccount><Payment /></RequireActiveAccount></RequireAuth>
+            } />
 
-          <Route path="/app/:appName" element={
-            <RequireAuth>
-              <RequireActiveAccount>
-                <Terminal />
-              </RequireActiveAccount>
-            </RequireAuth>
-          } />
+            <Route path="/app/:appName" element={
+              <RequireAuth><RequireActiveAccount><Terminal /></RequireActiveAccount></RequireAuth>
+            } />
 
-          {/* 👑 PREMIUM ONLY ROUTE */}
-          <Route path="/deploy" element={
-            <RequireAuth>
-              <RequireActiveAccount>
-                <RequirePremium>
-                  <Deploy />
-                </RequirePremium>
-              </RequireActiveAccount>
-            </RequireAuth>
-          } />
-          
-          {/* ========================================== */}
-          {/* 🎫 ROUTES ALLOWED EVEN IF SUSPENDED */}
-          {/* ========================================== */}
-          <Route path="/support" element={
-            <RequireAuth>
-              <Support /> {/* Bouncer nahi lagaya taaki user madad maang sake */}
-            </RequireAuth>
-          } />
+            <Route path="/deploy" element={
+              <RequireAuth><RequireActiveAccount><RequirePremium><Deploy /></RequirePremium></RequireActiveAccount></RequireAuth>
+            } />
+            
+            <Route path="/support" element={<RequireAuth><Support /></RequireAuth>} />
+            <Route path="/suspended" element={<RequireAuth><Suspended /></RequireAuth>} />
 
-          <Route path="/suspended" element={
-            <RequireAuth>
-              <Suspended /> {/* Laal Rang Wala Account Suspended Page */}
-            </RequireAuth>
-          } />
-
-          {/* ========================================== */}
-          {/* 404 Page */}
-          {/* ========================================== */}
-          <Route path="*" element={
-            <div className="h-screen flex flex-col items-center justify-center text-center">
-              <h1 className="text-6xl font-black text-purple-600 mb-4">404</h1>
-              <p className="text-gray-400 text-xl font-bold uppercase tracking-widest">System Not Found</p>
-              <a href="/dashboard" className="mt-8 text-purple-400 hover:text-white transition-colors border border-purple-500/30 hover:border-purple-500 px-6 py-2 rounded-lg">
-                Return to Base
-              </a>
-            </div>
-          } />
-        </Routes>
+            <Route path="*" element={
+              <div className="h-screen flex flex-col items-center justify-center text-center">
+                <h1 className="text-6xl font-black text-purple-600 mb-4">404</h1>
+                <p className="text-gray-400 text-xl font-bold uppercase tracking-widest">System Not Found</p>
+                <a href="/dashboard" className="mt-8 text-purple-400 hover:text-white transition-colors border border-purple-500/30 hover:border-purple-500 px-6 py-2 rounded-lg">
+                  Return to Base
+                </a>
+              </div>
+            } />
+          </Routes>
+        </div>
       </div>
     </Router>
   );
