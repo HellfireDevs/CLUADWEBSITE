@@ -407,4 +407,4 @@ export default function Profile() {
       </AnimatePresence>
     </div>
   );
-  
+ } // <--- Ye Profile function close kar raha hai (Yahi miss hua hai!) 
