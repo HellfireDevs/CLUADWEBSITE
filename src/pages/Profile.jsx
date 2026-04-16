@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, User, Key, Copy, CheckCircle, Shield, LogOut, ArrowLeft, Mail, Crown, CalendarDays, Zap, CreditCard, AlertTriangle, Trash2, X } from 'lucide-react';
+import { Server, User, Key, Copy, CheckCircle, Shield, LogOut, ArrowLeft, Mail, Crown, CalendarDays, Zap, CreditCard, AlertTriangle, Trash2, X, Activity } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
@@ -20,6 +20,15 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  // 🔥 FIX: Modal close hone par states ko reset karna zaroori hai
+  useEffect(() => {
+    if (!isOpen) {
+      setStep(1);
+      setOtp("");
+      setMessage("");
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -41,7 +50,6 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
   };
 
   const confirmDeleteAccount = async () => {
-    // 🔥 FIX: Whitespace remove karne ke liye trim() lagaya
     const cleanOtp = otp.trim();
     
     if (!cleanOtp) {
@@ -59,7 +67,7 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
       
       if (response.data.status === "success") {
         alert("Account permanently deleted. We are sorry to see you go.");
-        onLogout(); // Will handle localstorage clear and redirect
+        onLogout(); 
       }
     } catch (err) {
       setMessage("❌ Failed to delete account: " + (err.response?.data?.detail || err.message));
@@ -69,13 +77,13 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="bg-[#0a0a0a] border border-red-500/30 w-full max-w-md rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(220,38,38,0.15)] relative">
         
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-10"><X size={20}/></button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 p-2 rounded-full z-10 transition-colors"><X size={20}/></button>
         
         <div className="p-8 text-center border-b border-white/5 bg-gradient-to-b from-red-900/20 to-transparent">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+          <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
             <AlertTriangle className="text-red-500 w-8 h-8" />
           </div>
           <h2 className="text-2xl font-black text-white mb-2">Delete Account</h2>
@@ -83,45 +91,49 @@ const DeleteAccountModal = ({ isOpen, onClose, apiKey, username, onLogout }) => 
         </div>
 
         <div className="p-6 bg-[#050505]">
-          {message && (
-            <div className={`p-3 rounded-lg text-sm mb-4 border ${message.includes('❌') || message.includes('⚠️') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
-              {message}
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            {message && (
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                className={`p-3 rounded-lg text-sm mb-4 border font-medium text-center ${message.includes('❌') || message.includes('⚠️') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
+                {message}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {step === 1 ? (
-            <div className="space-y-4 text-center">
-              <p className="text-gray-300 text-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-center">
+              <p className="text-gray-400 text-sm leading-relaxed">
                 Deleting your account will remove all your deployed applications, environment variables, and associated data from NEX CLOUD immediately.
               </p>
               <button 
                 onClick={requestDeleteOTP} 
                 disabled={loading}
-                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50"
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50 flex justify-center items-center gap-2"
               >
                 {loading ? "Requesting OTP..." : "Yes, Send OTP to Delete"}
               </button>
-            </div>
+            </motion.div>
           ) : (
-             <div className="space-y-4 text-center">
-                <p className="text-gray-300 text-sm mb-2">
+             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 text-center">
+                <p className="text-gray-400 text-sm mb-2">
                   Please enter the 6-digit OTP sent to your email to confirm deletion.
                 </p>
                 <input 
                   type="text" 
                   value={otp} 
                   onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter OTP"
-                  className="w-full bg-black border border-white/10 rounded-xl p-3 text-center tracking-widest text-white focus:outline-none focus:border-red-500 mb-2"
+                  placeholder="• • • • • •"
+                  className="w-full bg-black border border-white/10 rounded-xl p-3 text-center tracking-[1em] font-mono text-white focus:outline-none focus:border-red-500 mb-2 transition-colors"
+                  maxLength={6}
                 />
                 <button 
                   onClick={confirmDeleteAccount} 
-                  disabled={loading || !otp}
-                  className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50"
+                  disabled={loading || otp.length < 5}
+                  className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-50 flex justify-center items-center gap-2"
                 >
-                  {loading ? "Deleting..." : "Permanently Delete Account"}
+                  {loading ? "Deleting System Data..." : <><Trash2 size={18}/> Permanently Delete</>}
                 </button>
-             </div>
+             </motion.div>
           )}
         </div>
       </motion.div>
@@ -197,9 +209,7 @@ export default function Profile() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("cloud_api_key");
-    localStorage.removeItem("cloud_username");
-    localStorage.removeItem("cloud_is_premium");
+    localStorage.clear(); // Saara data saaf karo ek baar mein
     navigate('/login');
   };
 
@@ -214,7 +224,6 @@ export default function Profile() {
             <Server className="text-purple-500 w-6 h-6" /> NEX<span className="text-purple-500">CLOUD</span>
           </Link>
           
-          {/* 🔥 FIX: Mobile pe ab Profile button dikhega! */}
           <div className="flex items-center gap-4 sm:gap-6">
             <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2">
               <ArrowLeft size={16} /> <span className="hidden sm:inline">Dashboard</span>
@@ -222,10 +231,10 @@ export default function Profile() {
             
             {/* User Profile Avatar */}
             <div className="flex items-center gap-2 text-sm font-bold text-gray-400">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 relative">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 relative shadow-lg">
                 {username.charAt(0).toUpperCase()}
                 {isPremium && (
-                  <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
+                  <div className="absolute -bottom-1 -right-1 bg-[#050505] rounded-full p-0.5">
                     <Crown size={12} className="text-yellow-400" />
                   </div>
                 )}
@@ -241,23 +250,30 @@ export default function Profile() {
         {/* Header */}
         <div className="mb-10 text-center sm:text-left flex flex-col sm:flex-row items-center gap-6">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }} 
-            className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black text-white shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-[#050505] relative ${isPremium ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'}`}
+            className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black text-white shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-[#050505] relative shrink-0 ${isPremium ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'}`}
           >
             {username.charAt(0).toUpperCase()}
             {isPremium && (
-              <div className="absolute -bottom-2 -right-2 bg-[#050505] rounded-full p-1.5">
+              <div className="absolute -bottom-2 -right-2 bg-[#050505] rounded-full p-1.5 shadow-lg">
                 <Crown size={20} className="text-yellow-400" />
               </div>
             )}
           </motion.div>
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white mb-1 flex items-center justify-center sm:justify-start gap-3">
+            <h1 className="text-3xl sm:text-4xl font-black text-white mb-2 flex items-center justify-center sm:justify-start gap-3">
               Hello, {username}
             </h1>
-            <p className="text-gray-400 flex items-center justify-center sm:justify-start gap-2">
-              <Shield size={16} className={isPremium ? "text-yellow-400" : "text-green-400"} /> 
-              Clearance: {isPremium ? 'Premium Overlord' : 'Standard User'}
-            </p>
+            <div className="flex flex-col sm:flex-row items-center sm:justify-start gap-3 text-sm">
+              <p className="text-gray-400 flex items-center gap-1.5">
+                <Shield size={16} className={isPremium ? "text-yellow-400" : "text-green-400"} /> 
+                {isPremium ? 'Premium Overlord' : 'Standard User'}
+              </p>
+              <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-white/20"></div>
+              {/* 🔥 NEW: Active Status Badge */}
+              <p className="text-green-400 flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] bg-green-500/10 px-2.5 py-1 rounded-md border border-green-500/20">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Active
+              </p>
+            </div>
           </div>
         </div>
 
@@ -265,7 +281,7 @@ export default function Profile() {
           
           {/* ================= SUBSCRIPTION / PLAN CARD ================= */}
           <motion.div variants={fadeInUp} className={`border backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden ${isPremium ? 'bg-yellow-500/[0.02] border-yellow-500/30' : 'bg-white/[0.02] border-white/10'}`}>
-            {isPremium && <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 blur-[50px] -z-10 rounded-full"></div>}
+            {isPremium && <div className="absolute top-0 right-0 w-40 h-40 bg-yellow-500/10 blur-[60px] -z-10 rounded-full"></div>}
             
             <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <CreditCard size={20} className={isPremium ? "text-yellow-400" : "text-purple-400"} /> Active Subscription
@@ -282,18 +298,18 @@ export default function Profile() {
               </div>
 
               {/* Days Left UI */}
-              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 min-w-[160px] text-center">
+              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 min-w-[160px] text-center shadow-inner">
                 <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center justify-center gap-1">
                   <CalendarDays size={12}/> {isPremium ? 'Time Remaining' : 'Status'}
                 </p>
                 {isLoading ? (
-                   <p className="text-gray-400 animate-pulse">Checking...</p>
+                   <p className="text-gray-400 animate-pulse text-sm py-1">Checking...</p>
                 ) : isPremium ? (
                   <div className="text-white font-medium">
-                    <span className="text-3xl font-black text-yellow-400">{daysLeft}</span> Days
+                    <span className="text-3xl font-black text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.3)]">{daysLeft}</span> Days
                   </div>
                 ) : (
-                  <div className="text-red-400 font-bold tracking-widest uppercase">Expired</div>
+                  <div className="text-red-400 font-bold tracking-widest uppercase py-1">Expired</div>
                 )}
               </div>
             </div>
@@ -301,8 +317,8 @@ export default function Profile() {
             {/* Upgrade Button for Free Users */}
             {!isPremium && !isLoading && (
               <div className="mt-6 pt-6 border-t border-white/5">
-                <button onClick={() => navigate('/payment')} className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] flex items-center justify-center gap-2">
-                  <Zap size={18} /> Upgrade to Premium Now
+                <button onClick={() => navigate('/payment')} className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] flex items-center justify-center gap-2">
+                  <Zap size={18} className="fill-white/20" /> Upgrade to Premium Now
                 </button>
               </div>
             )}
@@ -315,14 +331,14 @@ export default function Profile() {
             </h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4">
+              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 shadow-inner">
                 <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Username</p>
                 <p className="text-white font-medium">{username}</p>
               </div>
-              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 flex items-center justify-between opacity-50 cursor-not-allowed">
+              <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 flex items-center justify-between opacity-50 cursor-not-allowed shadow-inner" title="Hidden for privacy">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center gap-1"><Mail size={12}/> Email Address</p>
-                  <p className="text-gray-400 font-medium">Hidden for security</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center gap-1.5"><Mail size={12}/> Email Address</p>
+                  <p className="text-gray-400 font-medium tracking-wide">••••••••@•••••.com</p>
                 </div>
               </div>
             </div>
@@ -334,21 +350,23 @@ export default function Profile() {
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Key size={20} className="text-purple-400" /> Master API Key
               </h3>
-              <span className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">Highly Confidential</span>
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1.5">
+                <Activity size={10} className="animate-pulse" /> Highly Confidential
+              </span>
             </div>
             
-            <p className="text-gray-400 text-sm mb-4">This key grants full access to your cloud deployments. Never share it.</p>
+            <p className="text-gray-400 text-sm mb-5">This key grants full access to your cloud deployments and settings. Never share it publicly.</p>
             
             <div className="flex items-center gap-3">
-              <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-xl p-4 font-mono text-sm tracking-wider overflow-x-auto whitespace-nowrap text-purple-300">
-                {showKey ? apiKey : '••••••••••••••••••••••••••••••••••••••••••••'}
+              <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-xl p-4 font-mono text-sm tracking-[0.2em] overflow-x-auto whitespace-nowrap text-purple-300 shadow-inner">
+                {showKey ? apiKey : '••••••••••••••••••••••••••••••••'}
               </div>
               
               <button onClick={() => setShowKey(!showKey)} className="p-4 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-colors border border-white/5">
                 {showKey ? 'Hide' : 'Reveal'}
               </button>
 
-              <button onClick={copyToClipboard} className="p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all shadow-lg flex items-center gap-2 font-bold min-w-[120px] justify-center">
+              <button onClick={copyToClipboard} className="p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)] flex items-center gap-2 font-bold min-w-[120px] justify-center">
                 {copied ? <><CheckCircle size={18} /> Copied</> : <><Copy size={18} /> Copy</>}
               </button>
             </div>
@@ -356,15 +374,17 @@ export default function Profile() {
 
           {/* ================= DANGER ZONE ================= */}
           <motion.div variants={fadeInUp} className="bg-red-500/[0.02] border border-red-500/20 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-xl mt-10 mb-10">
-            <h3 className="text-xl font-bold text-red-400 mb-2">Danger Zone</h3>
-            <p className="text-gray-400 text-sm mb-6">Take care of what you click here. Actions are irreversible.</p>
+            <h3 className="text-xl font-bold text-red-400 mb-2 flex items-center gap-2">
+              <AlertTriangle size={20} /> Danger Zone
+            </h3>
+            <p className="text-gray-400 text-sm mb-6">Take care of what you click here. Actions are permanent and irreversible.</p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={handleLogout} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+              <button onClick={handleLogout} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white font-bold px-6 py-3.5 rounded-xl transition-all flex items-center justify-center gap-2">
                 <LogOut size={18} /> Disconnect Session
               </button>
               
-              <button onClick={() => setIsDeleteModalOpen(true)} className="flex-1 bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+              <button onClick={() => setIsDeleteModalOpen(true)} className="flex-1 bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white font-bold px-6 py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg">
                 <Trash2 size={18} /> Delete Account
               </button>
             </div>
@@ -387,4 +407,4 @@ export default function Profile() {
       </AnimatePresence>
     </div>
   );
-}
+  
