@@ -33,10 +33,18 @@ export default function Login() {
     const params = new URLSearchParams(window.location.search);
     const oauthApiKey = params.get("api_key");
     const oauthUsername = params.get("username");
+    
+    // 🔥 NEW: Check if backend sent status via URL
+    const oauthIsPremium = params.get("is_premium");
+    const oauthIsSuspended = params.get("is_suspended");
 
     if (oauthApiKey && oauthUsername) {
       localStorage.setItem("cloud_api_key", oauthApiKey);
       localStorage.setItem("cloud_username", oauthUsername);
+      
+      if (oauthIsPremium) localStorage.setItem("cloud_is_premium", oauthIsPremium);
+      if (oauthIsSuspended) localStorage.setItem("cloud_is_suspended", oauthIsSuspended);
+      
       window.history.replaceState({}, document.title, window.location.pathname);
       navigate('/dashboard');
     }
@@ -77,8 +85,12 @@ export default function Login() {
       });
 
       if (response.data.status === "success") {
+        // 🔥 FIX: Ab login hote hi saara data save ho jayega!
         localStorage.setItem("cloud_api_key", response.data.api_key);
-        localStorage.setItem("cloud_username", formData.username);
+        localStorage.setItem("cloud_username", response.data.username || formData.username);
+        localStorage.setItem("cloud_is_premium", response.data.is_premium || false);
+        localStorage.setItem("cloud_is_suspended", response.data.is_suspended || false);
+        
         navigate('/dashboard');
       }
     } catch (err) {
