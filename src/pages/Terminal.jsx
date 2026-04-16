@@ -23,7 +23,11 @@ export default function Terminal() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [actionType, setActionType] = useState(""); 
   const logsEndRef = useRef(null);
+  
+  // 🔥 FIX 2: WebSocket aur Auto-Reconnect ko control karne ke liye naye Refs
   const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const isIntentionalClose = useRef(false);
 
   // Auto-Deploy & Update States
   const [autoDeploy, setAutoDeploy] = useState(true);
@@ -37,8 +41,11 @@ export default function Terminal() {
     setApiKey(key);
     fetchAppDetails(key);
     
+    // Cleanup on unmount
     return () => {
+      isIntentionalClose.current = true;
       if (wsRef.current) wsRef.current.close();
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
   }, [appName, navigate]);
 
@@ -70,10 +77,19 @@ export default function Terminal() {
     }
   };
 
-  // 2. 🔥 SMART WEBSOCKET LOGIC
+  // 2. 🔥 SMART WEBSOCKET LOGIC (With Auto-Reconnect)
   const connectWebSocket = (app, mode = logMode) => {
-    if (wsRef.current) wsRef.current.close(); 
-    
+    // Puraane socket aur timeouts saaf karo
+    isIntentionalClose.current = true; 
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    isIntentionalClose.current = false; // Naye socket ke liye reset
+
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
     const username = localStorage.getItem("cloud_username") || "user";
@@ -94,18 +110,25 @@ export default function Terminal() {
       const text = event.data;
       setLogs((prev) => [...prev, text]);
 
+      // 🔥 FIX 1: Auto-Redirect hata diya. Ab bas message aayega, tab change nahi hoga.
       if (mode === 'build' && (text.includes('NEX_CLOUD_BUILD_COMPLETE') || text.includes('NEX_CLOUD_BUILD_FAILED'))) {
-        setTimeout(() => {
-          setLogs(prev => [...prev, "", "> 🔄 Build process finished. Auto-switching to runtime logs in 3 seconds..."]);
-          setTimeout(() => {
-            switchLogMode('runtime', app);
-          }, 3000);
-        }, 1000);
+        setLogs(prev => [...prev, "", "> 🏁 Build process finished! You can now manually switch to RUNTIME logs."]);
       }
     };
     
-    ws.onerror = () => setLogs((prev) => [...prev, `❌ WebSocket Error in ${mode.toUpperCase()} mode.`]);
-    ws.onclose = () => setLogs((prev) => [...prev, `🔴 ${mode.toUpperCase()} Stream Disconnected.`]);
+    ws.onerror = () => {
+      // Error hone pe onclose trigger hoga, wahan handle karenge
+    };
+
+    ws.onclose = () => {
+      // Agar humne khud band nahi kiya (like tab switch), toh zidd karke wapas connect karega
+      if (!isIntentionalClose.current) {
+        setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-reconnecting in 3s...`]);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket(app, mode);
+        }, 3000);
+      }
+    };
     
     wsRef.current = ws;
   };
@@ -197,7 +220,6 @@ export default function Terminal() {
   };
 
   return (
-    // 🔥 FIX: Height ko screen ke barabar restrict kar diya `h-screen overflow-hidden`
     <div className="h-screen bg-[#050505] text-gray-200 font-sans flex flex-col relative overflow-hidden">
       <Background />
       
@@ -243,7 +265,7 @@ export default function Terminal() {
         )}
       </AnimatePresence>
 
-      {/* 🚀 TOP NAVBAR - Always fixed at the top */}
+      {/* 🚀 TOP NAVBAR */}
       <nav className="border-b border-white/5 bg-[#0a0a0a] z-50 shrink-0">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-4 justify-between sm:items-center">
           
@@ -281,7 +303,7 @@ export default function Terminal() {
             </div>
           </div>
           
-          {/* Controls Menu - Scrollable on mobile if needed */}
+          {/* Controls Menu */}
           <div className="flex items-center gap-2 bg-[#050505] p-1 rounded-xl border border-white/5 overflow-x-auto shrink-0 pb-1 sm:pb-0 scrollbar-hide">
             <button onClick={() => handleAction('start')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap">
               <Play size={16} className="fill-green-400/20 shrink-0"/> <span className="hidden sm:inline">Start</span>
@@ -303,7 +325,7 @@ export default function Terminal() {
         </div>
       </nav>
 
-      {/* 🖥️ TERMINAL WINDOW - This area will scroll internally */}
+      {/* 🖥️ TERMINAL WINDOW */}
       <div className="flex-1 p-2 sm:p-4 flex flex-col min-h-0 z-10 w-full max-w-7xl mx-auto pb-6 sm:pb-4">
         <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
           
@@ -343,7 +365,7 @@ export default function Terminal() {
             </button>
           </div>
 
-          {/* Logs Area - ONLY THIS SCROLLS */}
+          {/* Logs Area */}
           <div className="flex-1 p-3 sm:p-4 overflow-y-auto font-mono text-[11px] sm:text-[13px] leading-relaxed tracking-wide scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-[#050505]">
             {logs.length === 0 ? (
               <div className="text-gray-600 italic">Waiting for incoming logs...</div>
@@ -370,7 +392,6 @@ export default function Terminal() {
             <div ref={logsEndRef} />
           </div>
           
-          {/* Top Shadow for Terminal */}
           <div className="absolute top-[48px] left-0 right-0 h-4 bg-gradient-to-b from-[#050505] to-transparent pointer-events-none"></div>
         </div>
       </div>
