@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, User, Mail, Lock, Key, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
@@ -21,6 +21,9 @@ export default function Register() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   
+  // 🔥 MAGIC TOOL: Turnstile ko control karne ke liye ref
+  const turnstileRef = useRef(null);
+  
   // 🛡️ CAPTCHA STATE
   const [captchaToken, setCaptchaToken] = useState(null);
   
@@ -28,7 +31,7 @@ export default function Register() {
   const [isAgreed, setIsAgreed] = useState(false);
 
   // 🔍 USERNAME LIVE CHECK STATES
-  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken, invalid
+  const [usernameStatus, setUsernameStatus] = useState('idle'); 
   const [usernameMessage, setUsernameMessage] = useState('');
 
   const [formData, setFormData] = useState({
@@ -50,34 +53,29 @@ export default function Register() {
     const checkUsername = async () => {
       const uname = formData.username;
       
-      // 1. Agar khali hai toh kuch mat karo
       if (!uname) {
         setUsernameStatus('idle');
         setUsernameMessage('');
         return;
       }
       
-      // 2. Sirf 1-2 word likha hai toh block karo
       if (uname.length < 3) {
         setUsernameStatus('invalid');
         setUsernameMessage('⚠️ Username must be at least 3 characters.');
         return;
       }
 
-      // 3. Space ya special char daala hai toh gaali do (block karo)
       if (!/^[a-zA-Z0-9_]+$/.test(uname)) {
         setUsernameStatus('invalid');
         setUsernameMessage('⚠️ Only letters, numbers, and underscore (_) allowed.');
         return;
       }
 
-      // 4. Sab theek hai toh backend se pucho
       setUsernameStatus('checking');
       setUsernameMessage('⏳ Checking availability...');
 
       try {
         const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-        // Backend se check karwa rahe hain
         const response = await axios.get(`${API_URL}/auth/check-username?username=${uname}`);
         
         if (response.data.available) {
@@ -88,13 +86,11 @@ export default function Register() {
           setUsernameMessage('❌ Username is already taken!');
         }
       } catch (err) {
-        // Agar endpoint nahi mila ya backend down hai
         setUsernameStatus('idle');
         setUsernameMessage('');
       }
     };
 
-    // Debounce: User ke type karne ke 500ms baad hi API hit hogi (Performance bachegi)
     const timeoutId = setTimeout(() => {
       checkUsername();
     }, 500);
@@ -147,6 +143,12 @@ export default function Register() {
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Network error hai bhai!");
+      
+      // 🔥 THE FIX: Error aate hi Turnstile ko RESET maro
+      if (turnstileRef.current) {
+        turnstileRef.current.reset();
+      }
+      setCaptchaToken(null); // Purana token delete kar do taaki naya generate ho sake
     } finally {
       setIsLoading(false);
     }
@@ -323,6 +325,7 @@ export default function Register() {
                 {/* 🛡️ CLOUDFLARE TURNSTILE WIDGET */}
                 <div className="flex justify-center mt-4">
                   <Turnstile
+                    ref={turnstileRef} // 🔥 YAHAN PE REF ATTACH HUA
                     siteKey="0x4AAAAAAC9_4Z66YP-JuWh-"
                     options={{ theme: 'dark' }}
                     onSuccess={(token) => setCaptchaToken(token)}
@@ -403,4 +406,4 @@ export default function Register() {
       </div>
     </div>
   );
-                  }
+}
