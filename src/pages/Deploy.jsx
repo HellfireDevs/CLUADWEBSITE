@@ -187,8 +187,8 @@ export default function Deploy() {
 
       if (response.data.status === "success") {
         setSuccess("Deployment Initiated! Redirecting to Terminal...");
-        // Seedha terminal pe bhej do live logs dekhne ke liye!
-        setTimeout(() => navigate(`/app/${formData.app_name}`), 3000);
+        // 🔥 NAYA: isNewDeploy flag bhej rahe hain taaki auto-switch ho build logs mein!
+        setTimeout(() => navigate(`/app/${formData.app_name}`, { state: { isNewDeploy: true } }), 3000);
       }
     } catch (err) {
       // Backend se error aayega agar VIP access nahi hoga ya command galat hogi
