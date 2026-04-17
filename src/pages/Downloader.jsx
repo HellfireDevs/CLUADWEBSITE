@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🔥 FIX 1: Yahan se 'Youtube' hata diya hai
-import { Search, Loader2, Play, Download, AlertTriangle, ArrowLeft, Headphones, Monitor, CheckCircle } from 'lucide-react';
+// 🔥 FIX: RotateCcw import kiya "Start New" button ke liye
+import { Search, Loader2, Play, Download, AlertTriangle, ArrowLeft, Headphones, Monitor, CheckCircle, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background'; 
 
-// 🔥 FIX 2: APNA KHUD KA CUSTOM YOUTUBE ICON BANA DIYA! (Lucide ki aisi ki taisi)
 const YoutubeIcon = ({ size = 24, className = "" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path>
@@ -28,9 +27,25 @@ export default function Downloader() {
 
   const YUKI_API_URL = import.meta.env.VITE_YUKI_API_URL || "https://rocket-accessories-contain-ride.trycloudflare.com";
 
+  // 🔥 FIX: Clear and Reset Function
+  const handleReset = () => {
+    setUrl('');
+    setVideoInfo(null);
+    setStreamLink('');
+    setInfoError('');
+    setSelectedFormat('video');
+  };
+
   const handleFetchInfo = async (e) => {
     e.preventDefault();
     if (!url) return;
+
+    // 🔥 FIX: Gibberish/Spam Link Protection!
+    const urlPattern = /^https?:\/\/[^\s$.?#].[^\s]*$/i;
+    if (!urlPattern.test(url)) {
+      setInfoError("❌ Invalid Link! Please paste a proper URL (starting with http:// or https://)");
+      return;
+    }
     
     setLoadingInfo(true);
     setInfoError('');
@@ -43,7 +58,7 @@ export default function Downloader() {
         setVideoInfo(res.data);
       }
     } catch (err) {
-      setInfoError(err.response?.data?.detail || "Failed to fetch video info.");
+      setInfoError(err.response?.data?.detail || "Failed to fetch video info. Check the link and try again.");
     } finally {
       setLoadingInfo(false);
     }
@@ -74,6 +89,20 @@ export default function Downloader() {
     }
   };
 
+  // 🔥 FIX: Auto Download Hack Bypass CORS
+  const handleForceDownload = () => {
+    // Hidden anchor tag banakar usko programmatically click karwayenge
+    const downloadUrl = streamLink.includes('?') ? `${streamLink}&download=true` : `${streamLink}?download=true`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    // target="_self" rakha hai taaki naya tab open na ho
+    a.target = '_self'; 
+    a.download = videoInfo?.title || "download";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const formatTime = (seconds) => {
     if (!seconds) return "Unknown";
     const h = Math.floor(seconds / 3600);
@@ -96,7 +125,6 @@ export default function Downloader() {
         
         <div className="flex flex-col items-center text-center mb-10">
           <div className="w-16 h-16 bg-red-500/10 rounded-2xl mb-4 border border-red-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-            {/* 🔥 FIX 3: Naya Custom icon use kiya */}
             <YoutubeIcon className="text-red-500" size={32} />
           </div>
           <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase">YUKI Media Engine</h1>
@@ -111,9 +139,18 @@ export default function Downloader() {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste YouTube Link here..."
+            placeholder="Paste YouTube or Media Link here..."
             className="w-full bg-white/[0.02] border border-white/10 hover:border-red-500/30 focus:border-red-500 text-white placeholder-gray-600 rounded-2xl px-4 py-4 pl-12 pr-32 outline-none transition-all focus:shadow-[0_0_30px_rgba(239,68,68,0.15)] backdrop-blur-md"
           />
+          {url && (
+            <button
+              type="button"
+              onClick={() => setUrl('')}
+              className="absolute inset-y-0 right-[100px] px-2 text-gray-500 hover:text-white transition-colors flex items-center"
+            >
+              ✕
+            </button>
+          )}
           <button
             type="submit"
             disabled={loadingInfo || !url}
@@ -196,8 +233,8 @@ export default function Downloader() {
                 ) : (
                   <motion.div initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} className="space-y-6 flex flex-col items-center justify-center h-full">
                     
-                    <div className="w-20 h-20 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mb-2">
-                      <CheckCircle className="text-green-400 w-10 h-10" />
+                    <div className="w-16 h-16 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mb-1">
+                      <CheckCircle className="text-green-400 w-8 h-8" />
                     </div>
                     
                     <div className="text-center">
@@ -205,16 +242,22 @@ export default function Downloader() {
                       <p className="text-gray-400 text-sm">Media has been extracted to our cache servers.</p>
                     </div>
 
-                    <div className="w-full flex flex-col gap-3 mt-4">
-                      <a 
-                        href={streamLink} 
-                        download 
-                        target="_blank" 
-                        rel="noreferrer"
+                    <div className="w-full flex flex-col gap-3 mt-2">
+                      {/* 🔥 FIX: Custom Download Handler Use Kiya Hai */}
+                      <button 
+                        onClick={handleForceDownload}
                         className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-3.5 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all flex items-center justify-center gap-2"
                       >
                         <Download size={20} /> Download File Native
-                      </a>
+                      </button>
+                      
+                      {/* 🔥 FIX: Start New Download Button */}
+                      <button 
+                        onClick={handleReset}
+                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold py-3.5 rounded-xl border border-white/10 transition-all flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw size={18} /> Clear & Start New
+                      </button>
                       
                       <p className="text-[10px] text-gray-500 text-center uppercase font-bold tracking-widest mt-2 mb-1">Live Preview</p>
                       
