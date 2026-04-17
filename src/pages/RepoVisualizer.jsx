@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FolderGit2, Copy, CheckCircle, Loader2, AlertTriangle, Github, Star, GitFork, BookOpen } from 'lucide-react';
+// 🔥 FIX: 'Github' ko lucide-react se hata diya
+import { Search, FolderGit2, Copy, CheckCircle, Loader2, AlertTriangle, Star, GitFork, BookOpen } from 'lucide-react';
+// 🔥 FIX: Uski jagah react-icons se FaGithub import kar liya
+import { FaGithub } from 'react-icons/fa'; 
 import axios from 'axios';
 
 export default function RepoVisualizer() {
@@ -58,10 +61,9 @@ export default function RepoVisualizer() {
     setRepoDetails(null);
 
     try {
-      // URL se Owner aur Repo Name nikalo (e.g. https://github.com/facebook/react)
+      // URL se Owner aur Repo Name nikalo
       let owner = "", repo = "";
       
-      // Clean the input
       const cleanInput = inputUrl.replace(/\/$/, '').trim();
       
       if (cleanInput.includes('github.com')) {
@@ -76,7 +78,7 @@ export default function RepoVisualizer() {
         throw new Error("Invalid format! Use 'owner/repo' or GitHub URL.");
       }
 
-      // 1. Fetch Repo Info (Stars, Default Branch, etc.)
+      // 1. Fetch Repo Info
       const infoRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}`);
       setRepoDetails(infoRes.data);
       const defaultBranch = infoRes.data.default_branch;
@@ -84,12 +86,11 @@ export default function RepoVisualizer() {
       // 2. Fetch the File Tree
       const treeRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`);
       
-      // Filter out huge directories to keep it clean (like node_modules, .git)
+      // Filter out huge directories
       const paths = treeRes.data.tree
         .map(item => item.path)
         .filter(p => !p.includes('node_modules') && !p.includes('.git/') && !p.includes('.github/'));
 
-      // Generate the visual tree
       const finalTree = generateAsciiTree(paths, repo);
       setTreeString(finalTree);
 
@@ -115,12 +116,10 @@ export default function RepoVisualizer() {
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans p-4 relative overflow-hidden flex flex-col items-center">
       
-      {/* Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-[300px] bg-purple-600/20 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="w-full max-w-4xl z-10 mt-10">
         
-        {/* Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-500/10 rounded-2xl mb-4 border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.2)]">
             <FolderGit2 className="w-8 h-8 text-purple-400" />
@@ -129,10 +128,10 @@ export default function RepoVisualizer() {
           <p className="text-gray-400">Instantly generate a clean folder structure from any public GitHub repository.</p>
         </div>
 
-        {/* Input Form */}
         <form onSubmit={handleFetch} className="relative mb-8 max-w-2xl mx-auto">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Github className="text-gray-500" size={20} />
+            {/* 🔥 FIX: Yahan FaGithub use kiya */}
+            <FaGithub className="text-gray-500" size={20} />
           </div>
           <input
             type="text"
@@ -151,7 +150,6 @@ export default function RepoVisualizer() {
           </button>
         </form>
 
-        {/* Error Alert */}
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -163,14 +161,12 @@ export default function RepoVisualizer() {
           )}
         </AnimatePresence>
 
-        {/* Result Area */}
         <AnimatePresence>
           {treeString && repoDetails && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-1 lg:grid-cols-3 gap-6"
             >
-              {/* Repo Details Card */}
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-white/[0.02] border border-white/10 p-6 rounded-2xl backdrop-blur-xl">
                   <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
@@ -195,10 +191,8 @@ export default function RepoVisualizer() {
                 </div>
               </div>
 
-              {/* Code Structure Card */}
               <div className="lg:col-span-2">
                 <div className="bg-white/[0.02] border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl flex flex-col h-full">
-                  {/* Window Header */}
                   <div className="bg-black/50 border-b border-white/5 p-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -215,7 +209,6 @@ export default function RepoVisualizer() {
                     </button>
                   </div>
 
-                  {/* ASCII Code Block */}
                   <div className="p-4 overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
                     <pre className="text-gray-300 font-mono text-sm leading-relaxed">
                       <code>{treeString}</code>
@@ -231,4 +224,3 @@ export default function RepoVisualizer() {
     </div>
   );
 }
-  
