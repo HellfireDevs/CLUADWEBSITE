@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+// 🔥 FIX: Yahan se 'Github' hata diya
 import { 
   Search, FolderGit2, Copy, CheckCircle, Loader2, AlertTriangle, 
-  Star, GitFork, BookOpen, Lock, Folder, Github, ArrowLeft 
+  Star, GitFork, BookOpen, Lock, Folder, ArrowLeft 
 } from 'lucide-react';
+// 🔥 FIX: Aur isko use karenge
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Background from '../components/Background'; // Agar Background add karna hai toh, warna hata dena
 
 export default function RepoVisualizer() {
   const navigate = useNavigate();
@@ -147,7 +150,7 @@ export default function RepoVisualizer() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* LEFT: REPO LIST (Import from Deploy UI) */}
+          {/* LEFT: REPO LIST */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white/[0.02] border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-xl">
               <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -221,7 +224,8 @@ export default function RepoVisualizer() {
             <AnimatePresence mode="wait">
               {!treeString ? (
                 <motion.div initial={{opacity:0}} animate={{opacity:1}} className="h-full flex flex-col items-center justify-center bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-10 text-center">
-                  <Github size={48} className="text-gray-800 mb-4" />
+                  {/* 🔥 FIX: Yahan bhi FaGithub use kiya hai lucide wale Github ki jagah */}
+                  <FaGithub size={48} className="text-gray-800 mb-4" />
                   <h3 className="text-gray-500 font-bold uppercase tracking-widest text-sm">Select a Repository</h3>
                   <p className="text-gray-600 text-xs mt-2">Pick a repo from the list to visualize its code structure</p>
                 </motion.div>
