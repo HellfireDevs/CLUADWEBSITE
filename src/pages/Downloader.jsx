@@ -19,7 +19,7 @@ export default function Downloader() {
   const [streamLink, setStreamLink] = useState('');
 
   // 🚀 UPDATE: Tera naya Cloudflare Tunnel ka link yahan set kar diya hai!
-  const YUKI_API_URL = import.meta.env.VITE_YUKI_API_URL || "https://rocket-accessories-contain-ride.trycloudflare.com";
+  const YUKI_API_URL = import.meta.env.VITE_YUKI_AI_URL || "https://rocket-accessories-contain-ride.trycloudflare.com";
 
   // 1. Fetch Thumbnail and Info
   const handleFetchInfo = async (e) => {
