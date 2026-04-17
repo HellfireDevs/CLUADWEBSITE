@@ -17,6 +17,7 @@ import Terminal from './pages/Terminal';
 
 // 🔥 NAYE COMPONENTS
 import Suspended from './pages/Suspended';
+import RepoVisualizer from './pages/RepoVisualizer'; // 👈 YAHAN IMPORT KIYA TERA NAYA TOOL
 import BroadcastBanner from './components/BroadcastBanner';
 
 // ==========================================
@@ -161,6 +162,11 @@ export default function App() {
 
             <Route path="/app/:appName" element={
               <RequireAuth><RequireActiveAccount><Terminal /></RequireActiveAccount></RequireAuth>
+            } />
+
+            {/* 👈 TERA NAYA REPO VISUALIZER ROUTE */}
+            <Route path="/repo-visualizer" element={
+              <RequireAuth><RequireActiveAccount><RepoVisualizer /></RequireActiveAccount></RequireAuth>
             } />
 
             <Route path="/deploy" element={
