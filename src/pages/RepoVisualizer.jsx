@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🔥 FIX: Yahan se 'Github' hata diya
 import { 
   Search, FolderGit2, Copy, CheckCircle, Loader2, AlertTriangle, 
   Star, GitFork, BookOpen, Lock, Folder, ArrowLeft 
 } from 'lucide-react';
-// 🔥 FIX: Aur isko use karenge
 import { FaGithub } from 'react-icons/fa'; 
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import Background from '../components/Background'; // Agar Background add karna hai toh, warna hata dena
+import Background from '../components/Background'; 
 
 export default function RepoVisualizer() {
   const navigate = useNavigate();
@@ -23,7 +21,7 @@ export default function RepoVisualizer() {
 
   // 🐙 GitHub Integration States
   const [isGithubConnected, setIsGithubConnected] = useState(false);
-  const [repos, setRepos] = useState([]);
+  const [repos, setRepos] = useState([]); // 🔥 FIX: Hamesha array rahega
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
 
@@ -48,11 +46,13 @@ export default function RepoVisualizer() {
       });
       if (response.data.status === "connected") {
         setIsGithubConnected(true);
-        setRepos(response.data.repos);
+        // 🔥 CRASH FIX: Agar response.data.repos null hua toh [] set hoga
+        setRepos(response.data.repos || []); 
       }
     } catch (err) {
-      console.log("GitHub not connected.");
+      console.log("GitHub not connected or API failed.");
       setIsGithubConnected(false);
+      setRepos([]); // Error aane pe list khali kardo, crash mat karo
     } finally {
       setIsLoadingRepos(false);
     }
@@ -92,6 +92,7 @@ export default function RepoVisualizer() {
 
   // 🚀 MAIN ANALYZE LOGIC
   const analyzeRepo = async (url) => {
+    if (!url) return;
     setLoading(true);
     setError('');
     setTreeString('');
@@ -116,12 +117,15 @@ export default function RepoVisualizer() {
       // 2. Fetch Tree
       const treeRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${infoRes.data.default_branch}?recursive=1`);
       
-      const paths = treeRes.data.tree
+      // 🔥 CRASH FIX: Check if tree exists
+      const treeData = treeRes.data.tree || [];
+      const paths = treeData
         .map(item => item.path)
         .filter(p => !p.includes('node_modules') && !p.includes('.git/') && !p.includes('.github/'));
 
       setTreeString(generateAsciiTree(paths, repo));
-      // Scroll to result
+      
+      // Scroll to result smoothly
       window.scrollTo({ top: 600, behavior: 'smooth' });
 
     } catch (err) {
@@ -131,13 +135,24 @@ export default function RepoVisualizer() {
     }
   };
 
-  const filteredRepos = repos.filter(repo => repo.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // 🔥 CRASH FIX: Safe filtering 
+  const safeRepos = Array.isArray(repos) ? repos : [];
+  const filteredRepos = safeRepos.filter(repo => 
+    repo.name && repo.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans p-4 relative overflow-hidden flex flex-col items-center">
       <Background />
       
-      <div className="w-full max-w-5xl z-10 mt-6">
+      {/* 🚀 TOP NAVBAR / BACK BUTTON */}
+      <nav className="w-full max-w-5xl z-50 mb-4 mt-2 flex justify-start">
+        <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5 hover:border-white/10">
+          <ArrowLeft size={16} /> Back to Dashboard
+        </Link>
+      </nav>
+
+      <div className="w-full max-w-5xl z-10">
         
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
@@ -181,7 +196,7 @@ export default function RepoVisualizer() {
                   <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-white/10">
                     {isLoadingRepos ? (
                       <div className="text-center py-10"><Loader2 className="animate-spin text-purple-500 mx-auto" /></div>
-                    ) : (
+                    ) : filteredRepos.length > 0 ? (
                       filteredRepos.map(repo => (
                         <div 
                           key={repo.id} 
@@ -195,9 +210,10 @@ export default function RepoVisualizer() {
                               <p className="text-[10px] text-gray-500 truncate">{repo.private ? 'Private' : 'Public'}</p>
                             </div>
                           </div>
-                          <ArrowRight size={14} className={`text-gray-600 group-hover:text-purple-400 transition-colors ${inputUrl === repo.url ? 'text-purple-400' : ''}`} />
                         </div>
                       ))
+                    ) : (
+                      <p className="text-center text-xs text-gray-500 py-4">No repositories found.</p>
                     )}
                   </div>
                 </div>
@@ -213,7 +229,7 @@ export default function RepoVisualizer() {
                       placeholder="https://github.com/..."
                       className="flex-1 bg-black/50 border border-white/10 text-xs text-white rounded-xl px-4 py-2 outline-none focus:border-purple-500"
                     />
-                    <button onClick={() => analyzeRepo(inputUrl)} className="bg-purple-600 p-2 rounded-xl text-white"><Search size={16}/></button>
+                    <button onClick={() => analyzeRepo(inputUrl)} disabled={loading || !inputUrl} className="bg-purple-600 disabled:opacity-50 p-2 rounded-xl text-white transition-all"><Search size={16}/></button>
                  </div>
               </div>
             </div>
@@ -224,7 +240,6 @@ export default function RepoVisualizer() {
             <AnimatePresence mode="wait">
               {!treeString ? (
                 <motion.div initial={{opacity:0}} animate={{opacity:1}} className="h-full flex flex-col items-center justify-center bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-10 text-center">
-                  {/* 🔥 FIX: Yahan bhi FaGithub use kiya hai lucide wale Github ki jagah */}
                   <FaGithub size={48} className="text-gray-800 mb-4" />
                   <h3 className="text-gray-500 font-bold uppercase tracking-widest text-sm">Select a Repository</h3>
                   <p className="text-gray-600 text-xs mt-2">Pick a repo from the list to visualize its code structure</p>
@@ -236,15 +251,15 @@ export default function RepoVisualizer() {
                   <div className="flex flex-wrap gap-3">
                     <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
                       <Star size={14} className="text-yellow-400" />
-                      <span className="text-xs font-bold">{repoDetails.stargazers_count}</span>
+                      <span className="text-xs font-bold">{repoDetails?.stargazers_count || 0}</span>
                     </div>
                     <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
                       <GitFork size={14} className="text-blue-400" />
-                      <span className="text-xs font-bold">{repoDetails.forks_count}</span>
+                      <span className="text-xs font-bold">{repoDetails?.forks_count || 0}</span>
                     </div>
                     <div className="bg-purple-500/10 border border-purple-500/20 px-4 py-2 rounded-2xl flex items-center gap-2">
                       <BookOpen size={14} className="text-purple-400" />
-                      <span className="text-xs font-bold uppercase tracking-tighter">{repoDetails.default_branch}</span>
+                      <span className="text-xs font-bold uppercase tracking-tighter">{repoDetails?.default_branch || 'main'}</span>
                     </div>
                   </div>
 
@@ -255,7 +270,7 @@ export default function RepoVisualizer() {
                         <div className="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
                         <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
                         <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
-                        <span className="text-[10px] font-mono text-gray-500 ml-2 uppercase tracking-widest">{repoDetails.name} Structure</span>
+                        <span className="text-[10px] font-mono text-gray-500 ml-2 uppercase tracking-widest">{repoDetails?.name} Structure</span>
                       </div>
                       <button 
                         onClick={() => { navigator.clipboard.writeText(treeString); setCopied(true); setTimeout(()=>setCopied(false), 2000); }}
