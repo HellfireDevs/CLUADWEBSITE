@@ -19,15 +19,13 @@ export default function RepoVisualizer() {
   const [treeString, setTreeString] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // 🐙 GitHub Integration States
   const [isGithubConnected, setIsGithubConnected] = useState(false);
-  const [repos, setRepos] = useState([]); // 🔥 FIX: Hamesha array rahega
+  const [repos, setRepos] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  // 🛡️ AUTH & GITHUB STATUS CHECK
   useEffect(() => {
     const apiKey = localStorage.getItem("cloud_api_key");
     if (!apiKey) {
@@ -37,7 +35,6 @@ export default function RepoVisualizer() {
     fetchGitHubRepos(apiKey);
   }, [navigate]);
 
-  // 📡 Fetch Repos from Backend
   const fetchGitHubRepos = async (apiKey) => {
     setIsLoadingRepos(true);
     try {
@@ -46,13 +43,11 @@ export default function RepoVisualizer() {
       });
       if (response.data.status === "connected") {
         setIsGithubConnected(true);
-        // 🔥 CRASH FIX: Agar response.data.repos null hua toh [] set hoga
-        setRepos(response.data.repos || []); 
+        setRepos(response.data.repos || []);
       }
     } catch (err) {
-      console.log("GitHub not connected or API failed.");
       setIsGithubConnected(false);
-      setRepos([]); // Error aane pe list khali kardo, crash mat karo
+      setRepos([]); 
     } finally {
       setIsLoadingRepos(false);
     }
@@ -63,7 +58,6 @@ export default function RepoVisualizer() {
     window.location.href = `${API_URL}/api/github/login?username=${username}`;
   };
 
-  // 🌳 TREE GENERATOR ALGORITHM
   const generateAsciiTree = (paths, repoName) => {
     const tree = {};
     paths.forEach(path => {
@@ -90,9 +84,9 @@ export default function RepoVisualizer() {
     return `${repoName}/\n${drawTree(tree)}`;
   };
 
-  // 🚀 MAIN ANALYZE LOGIC
-  const analyzeRepo = async (url) => {
-    if (!url) return;
+  // 🔥 URL PARSING FIX KIYA
+  const analyzeRepo = async (input) => {
+    if (!input) return;
     setLoading(true);
     setError('');
     setTreeString('');
@@ -100,24 +94,34 @@ export default function RepoVisualizer() {
 
     try {
       let owner = "", repo = "";
-      const cleanInput = url.replace(/\/$/, '').trim();
+      const cleanInput = input.replace(/\/$/, '').trim();
       
-      if (cleanInput.includes('github.com')) {
+      // Agar direct "facebook/react" jaisa naam pass ho
+      if (cleanInput.split('/').length === 2 && !cleanInput.includes('github.com')) {
+         const parts = cleanInput.split('/');
+         owner = parts[0];
+         repo = parts[1];
+      } 
+      // Agar pura github url ho
+      else if (cleanInput.includes('github.com')) {
         const parts = cleanInput.split('github.com/')[1].split('/');
         owner = parts[0];
         repo = parts[1];
+      } 
+      // Agar backend se api.github.com wala url aaye
+      else if (cleanInput.includes('api.github.com/repos/')) {
+        const parts = cleanInput.split('api.github.com/repos/')[1].split('/');
+        owner = parts[0];
+        repo = parts[1];
       } else {
-        throw new Error("Invalid GitHub URL!");
+        throw new Error("Invalid GitHub URL or Format!");
       }
 
-      // 1. Repo Info
       const infoRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}`);
       setRepoDetails(infoRes.data);
       
-      // 2. Fetch Tree
       const treeRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${infoRes.data.default_branch}?recursive=1`);
       
-      // 🔥 CRASH FIX: Check if tree exists
       const treeData = treeRes.data.tree || [];
       const paths = treeData
         .map(item => item.path)
@@ -125,17 +129,19 @@ export default function RepoVisualizer() {
 
       setTreeString(generateAsciiTree(paths, repo));
       
-      // Scroll to result smoothly
-      window.scrollTo({ top: 600, behavior: 'smooth' });
-
     } catch (err) {
-      setError(err.response?.status === 403 ? "API Limit Hit! Try later." : "Repo not found or private access denied.");
+      if (err.response?.status === 404) {
+         setError("❌ Repository not found. (If it's private, React cannot fetch it directly without backend auth!)");
+      } else if (err.response?.status === 403) {
+         setError("⚠️ GitHub API limit reached! Please wait a while.");
+      } else {
+         setError(err.message || "Something went wrong!");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 CRASH FIX: Safe filtering 
   const safeRepos = Array.isArray(repos) ? repos : [];
   const filteredRepos = safeRepos.filter(repo => 
     repo.name && repo.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -145,7 +151,6 @@ export default function RepoVisualizer() {
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans p-4 relative overflow-hidden flex flex-col items-center">
       <Background />
       
-      {/* 🚀 TOP NAVBAR / BACK BUTTON */}
       <nav className="w-full max-w-5xl z-50 mb-4 mt-2 flex justify-start">
         <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5 hover:border-white/10">
           <ArrowLeft size={16} /> Back to Dashboard
@@ -154,7 +159,6 @@ export default function RepoVisualizer() {
 
       <div className="w-full max-w-5xl z-10">
         
-        {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-16 h-16 bg-purple-500/10 rounded-2xl mb-4 border border-purple-500/30 flex items-center justify-center shadow-lg">
             <FolderGit2 className="text-purple-400" size={32} />
@@ -163,9 +167,20 @@ export default function RepoVisualizer() {
           <p className="text-gray-400 text-sm mt-1">Generate professional ASCII trees from GitHub Repositories</p>
         </div>
 
+        {/* 🔥 YAHAN WAPAS ERROR ALERT LAGA DIYA */}
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="mb-8 max-w-5xl mx-auto bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-bold backdrop-blur-md"
+            >
+              <AlertTriangle size={18} className="shrink-0" />
+              <p>{error}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* LEFT: REPO LIST */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white/[0.02] border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-xl">
               <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -200,8 +215,9 @@ export default function RepoVisualizer() {
                       filteredRepos.map(repo => (
                         <div 
                           key={repo.id} 
-                          onClick={() => { setInputUrl(repo.url); analyzeRepo(repo.url); }}
-                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group ${inputUrl === repo.url ? 'bg-purple-500/10 border-purple-500/50' : 'bg-white/5 border-transparent hover:border-white/10'}`}
+                          // 🔥 FIX: Ab direct repo.full_name pass ho raha hai ("owner/repo")
+                          onClick={() => { setInputUrl(repo.html_url); analyzeRepo(repo.full_name); }}
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group ${inputUrl === repo.html_url ? 'bg-purple-500/10 border-purple-500/50' : 'bg-white/5 border-transparent hover:border-white/10'}`}
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
                             {repo.private ? <Lock size={14} className="text-yellow-500 shrink-0"/> : <Folder size={14} className="text-gray-400 shrink-0"/>}
@@ -226,7 +242,7 @@ export default function RepoVisualizer() {
                       type="text" 
                       value={inputUrl} 
                       onChange={(e) => setInputUrl(e.target.value)}
-                      placeholder="https://github.com/..."
+                      placeholder="https://github.com/owner/repo"
                       className="flex-1 bg-black/50 border border-white/10 text-xs text-white rounded-xl px-4 py-2 outline-none focus:border-purple-500"
                     />
                     <button onClick={() => analyzeRepo(inputUrl)} disabled={loading || !inputUrl} className="bg-purple-600 disabled:opacity-50 p-2 rounded-xl text-white transition-all"><Search size={16}/></button>
@@ -235,19 +251,18 @@ export default function RepoVisualizer() {
             </div>
           </div>
 
-          {/* RIGHT: TREE VISUALIZATION */}
           <div className="lg:col-span-7">
             <AnimatePresence mode="wait">
               {!treeString ? (
-                <motion.div initial={{opacity:0}} animate={{opacity:1}} className="h-full flex flex-col items-center justify-center bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-10 text-center">
+                <motion.div initial={{opacity:0}} animate={{opacity:1}} className="h-full flex flex-col items-center justify-center bg-white/[0.01] border border-white/5 border-dashed rounded-3xl p-10 text-center min-h-[400px]">
                   <FaGithub size={48} className="text-gray-800 mb-4" />
                   <h3 className="text-gray-500 font-bold uppercase tracking-widest text-sm">Select a Repository</h3>
                   <p className="text-gray-600 text-xs mt-2">Pick a repo from the list to visualize its code structure</p>
+                  {loading && <Loader2 className="animate-spin text-purple-500 mt-4" size={24} />}
                 </motion.div>
               ) : (
                 <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y: 0}} className="space-y-4 h-full flex flex-col">
                   
-                  {/* Repo Quick Info */}
                   <div className="flex flex-wrap gap-3">
                     <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
                       <Star size={14} className="text-yellow-400" />
@@ -263,7 +278,6 @@ export default function RepoVisualizer() {
                     </div>
                   </div>
 
-                  {/* ASCII Window */}
                   <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex-1 flex flex-col">
                     <div className="bg-white/[0.03] border-b border-white/10 p-4 flex justify-between items-center">
                       <div className="flex items-center gap-2">
@@ -281,11 +295,7 @@ export default function RepoVisualizer() {
                       </button>
                     </div>
                     <div className="p-6 overflow-auto font-mono text-xs leading-relaxed text-purple-300/90 max-h-[500px] scrollbar-thin scrollbar-thumb-purple-500/20">
-                      {loading ? (
-                        <div className="h-40 flex items-center justify-center"><Loader2 className="animate-spin text-purple-500" /></div>
-                      ) : (
-                        <pre><code>{treeString}</code></pre>
-                      )}
+                      <pre><code>{treeString}</code></pre>
                     </div>
                   </div>
                 </motion.div>
