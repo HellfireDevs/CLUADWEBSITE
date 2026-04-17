@@ -1,282 +1,409 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, User, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Server, User, Mail, Lock, Eye, EyeOff,
+  ArrowRight, Loader2, AlertCircle, CheckSquare, Square
+} from 'lucide-react';
 import { FaGoogle, FaGithub } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
-import { Turnstile } from '@marsidev/react-turnstile'; // 🛡️ CLOUDFLARE TURNSTILE IMPORT
+import { Turnstile } from '@marsidev/react-turnstile';
 import axios from 'axios';
 
-// --- ANIMATIONS ---
-const containerVariants = {
-  hidden: { opacity: 0, scale: 0.95 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, type: "spring", bounce: 0.3 } }
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+// BUG FIX: boolean ko string "true"/"false" pe store karo explicitly
+const saveBool = (key, val) => localStorage.setItem(key, val ? 'true' : 'false');
+
+// ─── Animation variants ───────────────────────────────────────────────────────
+const cardVariants = {
+  hidden:  { opacity: 0, y: 24, scale: 0.97 },
+  visible: { opacity: 1, y: 0,  scale: 1,
+    transition: { duration: 0.5, type: 'spring', bounce: 0.25 } },
 };
 
+const errorVariants = {
+  hidden:  { opacity: 0, height: 0, marginBottom: 0 },
+  visible: { opacity: 1, height: 'auto', marginBottom: 24,
+    transition: { duration: 0.25 } },
+  exit:    { opacity: 0, height: 0, marginBottom: 0,
+    transition: { duration: 0.2 } },
+};
+
+// ─── Input field ──────────────────────────────────────────────────────────────
+const Field = ({ label, right, children }) => (
+  <div className="space-y-1.5">
+    <div className="flex items-center justify-between">
+      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em]">
+        {label}
+      </label>
+      {right}
+    </div>
+    {children}
+  </div>
+);
+
+const inputBase =
+  'w-full bg-[#0c0c0f] border border-white/[0.08] focus:border-violet-500/60 ' +
+  'text-white placeholder-gray-700 rounded-xl px-4 py-3.5 outline-none ' +
+  'transition-all duration-200 focus:shadow-[0_0_0_3px_rgba(124,58,237,0.12)] ' +
+  'text-sm';
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Login() {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  
-  // 🛡️ CAPTCHA STATE
-  const [captchaToken, setCaptchaToken] = useState(null);
+  const navigate     = useNavigate();
+  const turnstileRef = useRef(null);
+
+  const [showPassword,  setShowPassword]  = useState(false);
+  const [isLoading,     setIsLoading]     = useState(false);
+  const [oauthLoading,  setOauthLoading]  = useState(''); // 'google' | 'github' | ''
+  const [error,         setError]         = useState('');
+  const [captchaToken,  setCaptchaToken]  = useState(null);
+  const [rememberMe,    setRememberMe]    = useState(
+    () => localStorage.getItem('nex_remember_me') === 'true'
+  );
 
   const [formData, setFormData] = useState({
-    username: '', // Backend payload ko yahi naam chahiye, par isme Email bhi aayega
-    password: ''
+    username: rememberMe ? (localStorage.getItem('nex_saved_username') || '') : '',
+    password: '',
   });
 
-  // ==========================================
-  // 🪄 OAUTH MAGIC (Catch tokens from URL)
-  // ==========================================
+  // ── OAuth: catch tokens from URL ───────────────────────────────────────────
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthApiKey = params.get("api_key");
-    const oauthUsername = params.get("username");
-    
-    // 🔥 NEW: Check if backend sent status via URL
-    const oauthIsPremium = params.get("is_premium");
-    const oauthIsSuspended = params.get("is_suspended");
+    const params       = new URLSearchParams(window.location.search);
+    const oauthApiKey  = params.get('api_key');
+    const oauthUser    = params.get('username');
 
-    if (oauthApiKey && oauthUsername) {
-      localStorage.setItem("cloud_api_key", oauthApiKey);
-      localStorage.setItem("cloud_username", oauthUsername);
-      
-      if (oauthIsPremium) localStorage.setItem("cloud_is_premium", oauthIsPremium);
-      if (oauthIsSuspended) localStorage.setItem("cloud_is_suspended", oauthIsSuspended);
-      
+    if (oauthApiKey && oauthUser) {
+      // BUG FIX: clear URL immediately using replaceState BEFORE storing —
+      // browser history mein sensitive token nahi rahega
       window.history.replaceState({}, document.title, window.location.pathname);
-      navigate('/dashboard');
+
+      localStorage.setItem('cloud_api_key',   oauthApiKey);
+      localStorage.setItem('cloud_username',  oauthUser);
+      // BUG FIX: saveBool so these are never the string "false" which is truthy
+      saveBool('cloud_is_premium',   params.get('is_premium')   === 'true');
+      saveBool('cloud_is_suspended', params.get('is_suspended') === 'true');
+
+      navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (error) setError(""); 
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    if (error) setError('');
   };
 
-  // ==========================================
-  // 🔐 TRADITIONAL LOGIN (With Turnstile Check)
-  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
-    
-    if (!formData.username || !formData.password) {
-      setError("Bhai, username/email aur password dono daal!");
+
+    // BUG FIX: trim() — spaces-only username silently failed before
+    const username = formData.username.trim();
+    const password = formData.password;
+
+    if (!username || !password) {
+      setError('Username/email aur password dono required hain.');
       return;
     }
-
-    // 🛡️ CAPTCHA VERIFICATION
+    if (password.length < 6) {
+      setError('Password kam se kam 6 characters ka hona chahiye.');
+      return;
+    }
     if (!captchaToken) {
-      setError("Pehle verify kar ki tu robot nahi hai! 🤖");
+      setError('Pehle CAPTCHA complete karo! 🤖');
       return;
     }
 
     setIsLoading(true);
-    setError("");
+    setError('');
 
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        username: formData.username, // Ye email bhi ho sakta hai, backend smart hai
-        password: formData.password,
-        captcha_token: captchaToken 
+      const { data } = await axios.post(`${API_URL}/auth/login`, {
+        username,
+        password,
+        captcha_token: captchaToken,
       });
 
-      if (response.data.status === "success") {
-        // 🔥 FIX: Ab login hote hi saara data save ho jayega!
-        localStorage.setItem("cloud_api_key", response.data.api_key);
-        localStorage.setItem("cloud_username", response.data.username || formData.username);
-        localStorage.setItem("cloud_is_premium", response.data.is_premium || false);
-        localStorage.setItem("cloud_is_suspended", response.data.is_suspended || false);
-        
-        navigate('/dashboard');
+      if (data.status === 'success') {
+        localStorage.setItem('cloud_api_key',  data.api_key);
+        localStorage.setItem('cloud_username', data.username || username);
+        // BUG FIX: explicit boolean → string conversion
+        saveBool('cloud_is_premium',   data.is_premium);
+        saveBool('cloud_is_suspended', data.is_suspended);
+
+        // Remember Me logic
+        localStorage.setItem('nex_remember_me', rememberMe ? 'true' : 'false');
+        if (rememberMe) {
+          localStorage.setItem('nex_saved_username', username);
+        } else {
+          localStorage.removeItem('nex_saved_username');
+        }
+
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Server down hai ya network error hai!");
+      setError(err.response?.data?.detail || 'Login failed. Server ya network check karo.');
+      // BUG FIX: captcha reset after failure — expired token re-use blocked
+      setCaptchaToken(null);
+      turnstileRef.current?.reset?.();
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ==========================================
-  // 🌐 GOOGLE OAUTH
-  // ==========================================
-  const handleGoogleLogin = async () => {
+  const handleOAuth = async (provider) => {
+    if (oauthLoading) return; // BUG FIX: double-click guard
+    setOauthLoading(provider);
+    setError('');
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const response = await axios.get(`${API_URL}/api/google/login`);
-      if (response.data.url) {
-        window.location.href = response.data.url; 
+      const endpoint = provider === 'google'
+        ? `${API_URL}/api/google/login`
+        : `${API_URL}/api/github/login?username=AUTH_LOGIN_FLOW`;
+      const { data } = await axios.get(endpoint);
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No redirect URL received');
       }
-    } catch (err) {
-      setError("Google Login connect hone me dikkat aayi.");
+    } catch {
+      setError(`${provider === 'google' ? 'Google' : 'GitHub'} login mein dikkat aayi. Retry karo.`);
+      setOauthLoading('');
     }
   };
 
-  // ==========================================
-  // 🐙 GITHUB OAUTH
-  // ==========================================
-  const handleGithubLogin = async () => {
-    try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const response = await axios.get(`${API_URL}/api/github/login?username=AUTH_LOGIN_FLOW`);
-      if (response.data.url) {
-        window.location.href = response.data.url;
-      }
-    } catch (err) {
-      setError("GitHub Login connect hone me dikkat aayi.");
-    }
-  };
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const isEmail       = formData.username.includes('@');
+  const formDisabled  = isLoading || !!oauthLoading;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 font-sans flex items-center justify-center p-4 relative overflow-hidden">
-      
-      {/* 🌌 Ambient Background Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg h-[400px] bg-purple-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[#050507] text-gray-200 flex items-center justify-center p-4 relative overflow-hidden">
 
-      <motion.div 
-        variants={containerVariants}
+      {/* Ambient glows */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px]
+          bg-violet-700/10 blur-[140px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[15%] w-[400px] h-[400px]
+          bg-indigo-700/10 blur-[120px] rounded-full" />
+        {/* Subtle grid */}
+        <div className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),' +
+              'linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+      </div>
+
+      <motion.div
+        variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="w-full max-w-md bg-white/[0.02] border border-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl relative z-10"
+        className="w-full max-w-[420px] relative z-10"
       >
-        {/* Header */}
-        <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-center gap-2 text-white font-black text-2xl tracking-widest mb-2 hover:scale-105 transition-transform">
-            <Server className="text-purple-500 w-8 h-8" /> NEX<span className="text-purple-500">CLOUD</span>
-          </Link>
-          <p className="text-gray-400 text-sm font-medium">Access your deployment engine</p>
-        </div>
+        {/* Card */}
+        <div className="bg-[#0a0a0d]/80 backdrop-blur-2xl border border-white/[0.07]
+          rounded-3xl shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_32px_80px_rgba(0,0,0,0.7)]
+          p-8 sm:p-10">
 
-        {/* Error Alert */}
-        <AnimatePresence>
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="mb-6 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-bold shadow-lg"
-            >
-              <AlertCircle size={18} className="shrink-0" />
-              <p>{error}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-5">
-          
-          {/* 🔥 SMART Username/Email Input */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Username or Email</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500 group-focus-within:text-purple-500 transition-colors">
-                {/* 🪄 JADOO: @ type karte hi Mail icon ban jayega */}
-                {formData.username.includes('@') ? <Mail size={18} /> : <User size={18} />}
+          {/* Logo */}
+          <div className="text-center mb-9">
+            <Link to="/"
+              className="inline-flex items-center gap-2 text-white font-black
+                text-2xl tracking-[0.15em] hover:opacity-90 transition-opacity mb-3">
+              <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30
+                flex items-center justify-center">
+                <Server size={18} className="text-violet-400" />
               </div>
-              <input 
-                type="text" 
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                placeholder="admin123 or user@gmail.com"
-                className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-              />
-            </div>
+              NEX<span className="text-violet-400">CLOUD</span>
+            </Link>
+            <p className="text-gray-500 text-sm">
+              Access your deployment engine
+            </p>
           </div>
 
-          {/* Password Input */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center ml-1">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Password</label>
-              <Link to="/forgot-password" className="text-xs text-purple-400 hover:text-purple-300 font-bold transition-colors">Forgot Password?</Link>
-            </div>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center justify-center pointer-events-none text-gray-500 group-focus-within:text-purple-500 transition-colors">
-                <Lock size={18} />
-              </div>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full bg-[#0a0a0a] border border-white/10 focus:border-purple-500 text-white placeholder-gray-600 rounded-xl px-4 py-3.5 pl-11 pr-12 outline-none transition-all focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-4 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+          {/* Error */}
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div
+                key="error"
+                variants={errorVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="bg-red-500/8 border border-red-500/25 text-red-400
+                  px-4 py-3 rounded-xl flex items-start gap-3 text-sm overflow-hidden"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          {/* 🛡️ CLOUDFLARE TURNSTILE WIDGET */}
-          <div className="flex justify-center mt-4">
-            <Turnstile
-              siteKey="0x4AAAAAAC9_4Z66YP-JuWh-"
-              options={{ theme: 'dark' }}
-              onSuccess={(token) => setCaptchaToken(token)}
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button 
-            type="submit" 
-            disabled={isLoading}
-            className="w-full mt-4 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]"
-          >
-            {isLoading ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <>Initialize Login <ArrowRight size={18} /></>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <p className="font-medium leading-snug">{error}</p>
+              </motion.div>
             )}
-          </button>
-        </form>
+          </AnimatePresence>
 
-        {/* ========================================== */}
-        {/* 🔥 SOCIAL LOGIN BUTTONS */}
-        {/* ========================================== */}
-        <div className="mt-8">
-          <div className="relative">
+          {/* Form */}
+          <form onSubmit={handleLogin} className="space-y-4" noValidate>
+
+            {/* Username / Email */}
+            <Field label="Username or Email">
+              <div className="relative group">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center
+                  pointer-events-none text-gray-600
+                  group-focus-within:text-violet-400 transition-colors">
+                  {isEmail ? <Mail size={16} /> : <User size={16} />}
+                </span>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  disabled={formDisabled}
+                  placeholder="admin123 or you@gmail.com"
+                  autoComplete="username"
+                  className={`${inputBase} pl-10 disabled:opacity-50`}
+                />
+              </div>
+            </Field>
+
+            {/* Password */}
+            <Field
+              label="Password"
+              right={
+                <Link to="/forgot-password"
+                  className="text-[10px] text-violet-400 hover:text-violet-300
+                    font-bold tracking-wide transition-colors">
+                  Forgot?
+                </Link>
+              }
+            >
+              <div className="relative group">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center
+                  pointer-events-none text-gray-600
+                  group-focus-within:text-violet-400 transition-colors">
+                  <Lock size={16} />
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={formDisabled}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className={`${inputBase} pl-10 pr-12 disabled:opacity-50`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center
+                    text-gray-600 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </Field>
+
+            {/* Remember me */}
+            <button
+              type="button"
+              onClick={() => setRememberMe(v => !v)}
+              className="flex items-center gap-2 text-xs text-gray-500
+                hover:text-gray-300 transition-colors select-none"
+            >
+              {rememberMe
+                ? <CheckSquare size={15} className="text-violet-400" />
+                : <Square size={15} />}
+              Remember me
+            </button>
+
+            {/* Turnstile CAPTCHA */}
+            <div className="flex justify-center pt-1">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey="0x4AAAAAAC9_4Z66YP-JuWh-"
+                options={{ theme: 'dark', size: 'flexible' }}
+                onSuccess={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken(null)}   // BUG FIX: expired token clear
+                onError={() => {
+                  setCaptchaToken(null);
+                  setError('CAPTCHA load nahi hua. Page refresh karo.');
+                }}
+                className="w-full"
+              />
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={formDisabled || !captchaToken}
+              className="w-full bg-violet-600 hover:bg-violet-500
+                disabled:opacity-40 disabled:cursor-not-allowed
+                text-white font-bold py-3.5 rounded-xl
+                flex items-center justify-center gap-2
+                transition-all duration-200 active:scale-[0.98]
+                shadow-[0_0_24px_rgba(124,58,237,0.3)]
+                hover:shadow-[0_0_32px_rgba(124,58,237,0.45)]
+                text-sm tracking-wide"
+            >
+              {isLoading
+                ? <Loader2 size={18} className="animate-spin" />
+                : <><span>Initialize Login</span><ArrowRight size={16} /></>}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-7">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
+              <div className="w-full border-t border-white/[0.06]" />
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-3 bg-[#111111] text-gray-500 rounded-full font-medium">Or continue with</span>
+            <div className="relative flex justify-center">
+              <span className="px-4 bg-[#0a0a0d] text-gray-600 text-xs font-medium">
+                or continue with
+              </span>
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            {/* Google Button */}
-            <button 
-              type="button"
-              onClick={handleGoogleLogin}
-              className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg"
-            >
-              <FaGoogle size={18} className="text-red-400" /> Google
-            </button>
-            
-            {/* GitHub Button */}
-            <button 
-              type="button"
-              onClick={handleGithubLogin}
-              className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg"
-            >
-              <FaGithub size={18} className="text-gray-200" /> GitHub
-            </button>
+          {/* OAuth buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { provider: 'google', icon: FaGoogle, label: 'Google',  iconClass: 'text-rose-400' },
+              { provider: 'github', icon: FaGithub, label: 'GitHub',  iconClass: 'text-gray-300' },
+            ].map(({ provider, icon: Icon, label, iconClass }) => (
+              <button
+                key={provider}
+                type="button"
+                onClick={() => handleOAuth(provider)}
+                disabled={formDisabled}
+                className="flex items-center justify-center gap-2
+                  bg-white/[0.04] hover:bg-white/[0.08]
+                  border border-white/[0.08] hover:border-white/[0.15]
+                  text-white font-bold py-3 rounded-xl
+                  transition-all duration-200 active:scale-[0.97]
+                  disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+              >
+                {oauthLoading === provider
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <Icon size={16} className={iconClass} />}
+                {label}
+              </button>
+            ))}
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center border-t border-white/5 pt-6">
-          <p className="text-gray-400 text-sm">
-            Don't have a command center? <br className="sm:hidden" />
-            <Link to="/register" className="text-white font-bold hover:text-purple-400 transition-colors ml-1">Deploy a new account</Link>
+          {/* Footer */}
+          <p className="mt-8 text-center text-gray-600 text-xs leading-relaxed
+            border-t border-white/[0.05] pt-6">
+            No account yet?{' '}
+            <Link to="/register"
+              className="text-white font-bold hover:text-violet-400 transition-colors ml-0.5">
+              Create one →
+            </Link>
           </p>
         </div>
+
+        {/* Bottom tagline */}
+        <p className="text-center text-gray-700 text-[11px] mt-4 tracking-wide">
+          Secured by Cloudflare Turnstile · NEX CLOUD
+        </p>
       </motion.div>
     </div>
   );
