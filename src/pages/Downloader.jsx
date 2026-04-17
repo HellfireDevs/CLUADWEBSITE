@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// 🔥 FIX: CheckCircle ko import mein add kar diya hai, warna processing ke baad app crash ho jata!
-import { Youtube, Search, Loader2, Play, Download, AlertTriangle, ArrowLeft, Headphones, Monitor, Music, CheckCircle } from 'lucide-react';
+// 🔥 FIX 1: Yahan se 'Youtube' hata diya hai
+import { Search, Loader2, Play, Download, AlertTriangle, ArrowLeft, Headphones, Monitor, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background'; 
+
+// 🔥 FIX 2: APNA KHUD KA CUSTOM YOUTUBE ICON BANA DIYA! (Lucide ki aisi ki taisi)
+const YoutubeIcon = ({ size = 24, className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path>
+    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+  </svg>
+);
 
 export default function Downloader() {
   const [url, setUrl] = useState('');
@@ -12,16 +20,14 @@ export default function Downloader() {
   const [infoError, setInfoError] = useState('');
   const [videoInfo, setVideoInfo] = useState(null);
 
-  const [selectedFormat, setSelectedFormat] = useState('video'); // 'video' or 'audio'
+  const [selectedFormat, setSelectedFormat] = useState('video'); 
   const [selectedQuality, setSelectedQuality] = useState('720p');
   
   const [generatingLink, setGeneratingLink] = useState(false);
   const [streamLink, setStreamLink] = useState('');
 
-  // 🚀 UPDATE: Tera naya Cloudflare Tunnel ka link yahan set kar diya hai!
-  const YUKI_API_URL = import.meta.env.VITE_YUKI_AI_URL || "https://rocket-accessories-contain-ride.trycloudflare.com";
+  const YUKI_API_URL = import.meta.env.VITE_YUKI_API_URL || "https://rocket-accessories-contain-ride.trycloudflare.com";
 
-  // 1. Fetch Thumbnail and Info
   const handleFetchInfo = async (e) => {
     e.preventDefault();
     if (!url) return;
@@ -43,12 +49,10 @@ export default function Downloader() {
     }
   };
 
-  // 2. Generate Token and Prepare Download/Stream Link
   const handleGenerateLink = async () => {
     setGeneratingLink(true);
     setStreamLink('');
     try {
-      // Backend pe /download hit karke token lenge
       const res = await axios.get(`${YUKI_API_URL}/download`, {
         params: {
           url: videoInfo.video_id,
@@ -60,7 +64,6 @@ export default function Downloader() {
       if (res.data.status === 'success') {
         const token = res.data.download_token;
         const vidId = res.data.video_id;
-        // Direct stream link ban gaya
         const finalUrl = `${YUKI_API_URL}/stream/${vidId}?token=${token}`;
         setStreamLink(finalUrl);
       }
@@ -71,7 +74,6 @@ export default function Downloader() {
     }
   };
 
-  // Helper to format duration
   const formatTime = (seconds) => {
     if (!seconds) return "Unknown";
     const h = Math.floor(seconds / 3600);
@@ -84,7 +86,6 @@ export default function Downloader() {
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans p-4 relative overflow-hidden flex flex-col items-center pb-20">
       <Background />
       
-      {/* Navigation */}
       <nav className="w-full max-w-4xl z-50 mb-4 mt-2 flex justify-start">
         <Link to="/dashboard" className="text-gray-400 hover:text-white font-bold text-sm transition-colors flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5 hover:border-white/10">
           <ArrowLeft size={16} /> Back to Dashboard
@@ -93,16 +94,15 @@ export default function Downloader() {
 
       <div className="w-full max-w-4xl z-10">
         
-        {/* Header */}
         <div className="flex flex-col items-center text-center mb-10">
           <div className="w-16 h-16 bg-red-500/10 rounded-2xl mb-4 border border-red-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-            <Youtube className="text-red-500" size={32} />
+            {/* 🔥 FIX 3: Naya Custom icon use kiya */}
+            <YoutubeIcon className="text-red-500" size={32} />
           </div>
           <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase">YUKI Media Engine</h1>
           <p className="text-gray-400 text-sm mt-2">High-speed processing bypasses protections to extract raw audio and video.</p>
         </div>
 
-        {/* Input Form */}
         <form onSubmit={handleFetchInfo} className="relative mb-8 max-w-2xl mx-auto">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="text-gray-500" size={20} />
@@ -123,7 +123,6 @@ export default function Downloader() {
           </button>
         </form>
 
-        {/* Error State */}
         <AnimatePresence>
           {infoError && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -135,14 +134,12 @@ export default function Downloader() {
           )}
         </AnimatePresence>
 
-        {/* Result Area */}
         <AnimatePresence>
           {videoInfo && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               className="bg-white/[0.02] border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row gap-8"
             >
-              {/* Left: Thumbnail & Details */}
               <div className="w-full md:w-1/2 flex flex-col gap-4">
                 <div className="relative rounded-2xl overflow-hidden aspect-video border border-white/10 bg-black group shadow-lg">
                   <img src={videoInfo.thumbnail} alt="Thumbnail" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -156,11 +153,9 @@ export default function Downloader() {
                 </div>
               </div>
 
-              {/* Right: Controls & Download */}
               <div className="w-full md:w-1/2 flex flex-col justify-center">
                 
                 {!streamLink ? (
-                  // Selection & Generate UI
                   <div className="space-y-6">
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">1. Select Format</p>
@@ -199,7 +194,6 @@ export default function Downloader() {
                     </button>
                   </div>
                 ) : (
-                  // Ready UI: Player & Direct Download Button
                   <motion.div initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} className="space-y-6 flex flex-col items-center justify-center h-full">
                     
                     <div className="w-20 h-20 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mb-2">
@@ -212,7 +206,6 @@ export default function Downloader() {
                     </div>
 
                     <div className="w-full flex flex-col gap-3 mt-4">
-                      {/* Direct Browser Download */}
                       <a 
                         href={streamLink} 
                         download 
@@ -225,7 +218,6 @@ export default function Downloader() {
                       
                       <p className="text-[10px] text-gray-500 text-center uppercase font-bold tracking-widest mt-2 mb-1">Live Preview</p>
                       
-                      {/* Browser Built-in Player */}
                       <div className="w-full bg-black rounded-xl overflow-hidden border border-white/10 shadow-lg">
                         {selectedFormat === 'video' ? (
                           <video controls src={streamLink} className="w-full aspect-video" preload="none" controlsList="nodownload" />
@@ -245,4 +237,4 @@ export default function Downloader() {
       </div>
     </div>
   );
-              }
+}
