@@ -1,300 +1,415 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Server, ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw, 
-  RefreshCcw, Box, Cpu, CircleDot, GitBranch, Trash2, DownloadCloud, AlertTriangle 
+import {
+  ArrowLeft, Terminal as TerminalIcon, Play, Square, RotateCw,
+  RefreshCcw, Cpu, CircleDot, GitBranch, Trash2, DownloadCloud,
+  AlertTriangle, Wifi, WifiOff, Box, Zap
 } from 'lucide-react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Background from '../components/Background';
 
-export default function Terminal() {
-  const { appName } = useParams(); 
-  const navigate = useNavigate();
-  const location = useLocation(); 
-  const [appDetails, setAppDetails] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [apiKey, setApiKey] = useState("");
-  
-  const [logMode, setLogMode] = useState(location.state?.isNewDeploy ? 'build' : 'runtime'); 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const MAX_LOG_LINES = 500; // Memory guard — purane logs drop ho jaate hain
+const RECONNECT_DELAY_MS = 3000;
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const WS_URL  = API_URL.replace(/^http/, 'ws');
 
-  // Terminal States
-  const [logs, setLogs] = useState([]);
-  const [isActionLoading, setIsActionLoading] = useState(false);
-  const [actionType, setActionType] = useState(""); 
-  const logsEndRef = useRef(null);
-  
-  // WebSocket aur Auto-Reconnect ko control karne ke liye naye Refs
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const isIntentionalClose = useRef(false);
-  const userStoppedRef = useRef(false); 
+// ─── Log color classifier ─────────────────────────────────────────────────────
+const getLogColor = (line, mode) => {
+  if (!line) return 'text-gray-600';
+  const l = line;
+  if (l.includes('❌') || l.includes('🚨') || l.includes('ERROR') || l.includes('🔴'))
+    return 'text-red-400';
+  if (l.includes('✅') || l.includes('NEX_CLOUD_BUILD_COMPLETE'))
+    return 'text-emerald-400 font-semibold';
+  if (l.includes('NEX_CLOUD_BUILD_FAILED'))
+    return 'text-red-500 font-bold';
+  if (l.includes('⚠️') || l.includes('WARNING'))
+    return 'text-amber-400';
+  if (mode === 'build') {
+    if (l.includes('🚀') || l.includes('🔥')) return 'text-violet-400 font-semibold';
+    if (l.includes('🐳') || l.includes('📦') || l.includes('🏗️')) return 'text-sky-400';
+    if (l.includes('🧹') || l.includes('⬇️') || l.includes('🔫')) return 'text-cyan-400';
+    if (l.startsWith('>')) return 'text-gray-500 italic';
+    return 'text-gray-300';
+  }
+  if (l.startsWith('>')) return 'text-gray-500 italic';
+  return 'text-emerald-300/90';
+};
 
-  // 🔥 NAYA: Auto-Reconnect Toggle State (Default OFF, Persists in localStorage)
-  const [autoReconnect, setAutoReconnect] = useState(() => {
-    return localStorage.getItem("auto_reconnect_logs") === "true"; // Default False
-  });
-  const autoReconnectRef = useRef(autoReconnect); // WebSocket closure mein fresh value ke liye
-
-  // Auto-Deploy & Update States
-  const [autoDeploy, setAutoDeploy] = useState(true);
-  const [isToggleLoading, setIsToggleLoading] = useState(false);
-  const [showUpdatePopup, setShowUpdatePopup] = useState(false); 
-
-  // Toggle Handler
-  const handleToggleAutoReconnect = () => {
-    const newVal = !autoReconnect;
-    setAutoReconnect(newVal);
-    autoReconnectRef.current = newVal;
-    localStorage.setItem("auto_reconnect_logs", newVal);
-
-    // Agar ON kiya aur connection kata hua hai, toh turant connect maar do
-    if (newVal && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
-      connectWebSocket(appDetails, logMode, true);
-    }
+// ─── Status badge ─────────────────────────────────────────────────────────────
+const StatusBadge = ({ status }) => {
+  const map = {
+    online:  { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', pulse: true },
+    offline: { color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',         pulse: false },
+    stopped: { color: 'text-orange-400',  bg: 'bg-orange-500/10 border-orange-500/20',   pulse: false },
+    errored: { color: 'text-red-500',     bg: 'bg-red-500/10 border-red-500/20',         pulse: false },
   };
+  const s = map[status] || { color: 'text-gray-400', bg: 'bg-gray-500/10 border-gray-500/20', pulse: false };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${s.bg} ${s.color}`}>
+      <CircleDot size={8} className={s.pulse ? 'animate-pulse' : ''} />
+      {status || 'unknown'}
+    </span>
+  );
+};
 
-  // 1. Fetch App Details
+// ─── Action button ────────────────────────────────────────────────────────────
+const ActionBtn = ({ onClick, disabled, icon: Icon, label, colorClass }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={label}
+    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all
+      disabled:opacity-30 disabled:cursor-not-allowed border border-transparent
+      hover:border-white/10 active:scale-95 whitespace-nowrap ${colorClass}`}
+  >
+    <Icon size={14} />
+    <span className="hidden sm:inline">{label}</span>
+  </button>
+);
+
+// ─── WS connection dot ────────────────────────────────────────────────────────
+const WsDot = ({ state }) => {
+  // 0=CONNECTING 1=OPEN 2=CLOSING 3=CLOSED
+  const colors = ['text-amber-400 animate-pulse', 'text-emerald-400', 'text-amber-400', 'text-red-400'];
+  const labels = ['Connecting', 'Live', 'Closing', 'Disconnected'];
+  const c = colors[state ?? 3];
+  return (
+    <span className={`flex items-center gap-1 text-[10px] font-mono font-bold ${c}`}>
+      {state === 1 ? <Wifi size={11} /> : <WifiOff size={11} />}
+      {labels[state ?? 3]}
+    </span>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+export default function Terminal() {
+  const { appName }  = useParams();
+  const navigate     = useNavigate();
+  const location     = useLocation();
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [apiKey,          setApiKey]          = useState('');
+  const [appDetails,      setAppDetails]      = useState(null);
+  const [isLoading,       setIsLoading]       = useState(true);
+  const [logs,            setLogs]            = useState([]);
+  const [logMode,         setLogMode]         = useState(
+    location.state?.isNewDeploy ? 'build' : 'runtime'
+  );
+  const [wsState,         setWsState]         = useState(WebSocket.CLOSED);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [actionType,      setActionType]      = useState('');
+  const [autoDeploy,      setAutoDeploy]      = useState(true);
+  const [isToggleLoading, setIsToggleLoading] = useState(false);
+  const [showUpdatePopup, setShowUpdatePopup] = useState(false);
+  const [autoReconnect,   setAutoReconnect]   = useState(
+    () => localStorage.getItem('nex_auto_reconnect') === 'true'
+  );
+
+  // ── Refs (stable across renders, safe in callbacks) ────────────────────────
+  const wsRef              = useRef(null);
+  const reconnectTimer     = useRef(null);
+  const intentionalClose   = useRef(false);
+  const userStopped        = useRef(false);
+  const autoReconnectRef   = useRef(autoReconnect);
+  const logModeRef         = useRef(logMode);       // BUG FIX: stale closure in ws.onmessage
+  const appDetailsRef      = useRef(null);          // BUG FIX: stale closure in setTimeout
+  const logsEndRef         = useRef(null);
+
+  // keep refs in sync
+  useEffect(() => { autoReconnectRef.current = autoReconnect; }, [autoReconnect]);
+  useEffect(() => { logModeRef.current = logMode; }, [logMode]);
+
+  // ── Auto-scroll ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const key = localStorage.getItem("cloud_api_key");
-    if (!key) return navigate('/login');
-    setApiKey(key);
-    fetchAppDetails(key);
-    
-    // Cleanup on unmount
-    return () => {
-      isIntentionalClose.current = true;
-      if (wsRef.current) wsRef.current.close();
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  // ── addLog helper with MAX_LOG_LINES guard ─────────────────────────────────
+  const addLog = useCallback((line) => {
+    setLogs(prev => {
+      const next = [...prev, line];
+      return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+    });
+  }, []);
+
+  const addLogs = useCallback((lines) => {
+    setLogs(prev => {
+      const next = [...prev, ...lines];
+      return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+    });
+  }, []);
+
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  const connectWebSocket = useCallback((app, mode, isReconnect = false) => {
+    // Tear down existing connection first
+    intentionalClose.current = true;
+    wsRef.current?.close();
+    wsRef.current = null;
+    clearTimeout(reconnectTimer.current);
+    intentionalClose.current = false;
+
+    const username = localStorage.getItem('cloud_username') || 'user';
+    const wsUrl = mode === 'build'
+      ? `${WS_URL}/ws/build-stream/${username}/${appName}`
+      : `${WS_URL}/ws/stream/${appName}?use_docker=${app?.use_docker ? 'true' : 'false'}`;
+
+    if (!isReconnect) {
+      setLogs(
+        mode === 'build'
+          ? [`> 🏗️ BUILD STREAM — [${appName}]`, `> Connecting to pipeline...`]
+          : [`> 📡 RUNTIME LOGS — [${appName}]`, `> Engine: ${app?.use_docker ? 'Docker' : 'PM2'}`]
+      );
+    } else {
+      addLog(`> 🔄 Reconnecting...`);
+    }
+
+    const ws = new WebSocket(wsUrl);
+    setWsState(WebSocket.CONNECTING);
+
+    ws.onopen  = () => setWsState(WebSocket.OPEN);
+
+    ws.onmessage = ({ data }) => {
+      addLog(data);
+      // Build stream: auto-notify on finish
+      if (
+        logModeRef.current === 'build' &&
+        (data.includes('NEX_CLOUD_BUILD_COMPLETE') || data.includes('NEX_CLOUD_BUILD_FAILED'))
+      ) {
+        addLog('');
+        addLog('> 🏁 Build finished. Switch to RUNTIME tab to see live logs.');
+      }
     };
-  }, [appName, navigate]);
 
-  const fetchAppDetails = async (key) => {
+    ws.onerror = () => { /* onclose fires right after, handle there */ };
+
+    ws.onclose = () => {
+      setWsState(WebSocket.CLOSED);
+      if (intentionalClose.current) return;
+
+      if (userStopped.current) {
+        addLog('🔴 App is stopped. Stream paused.');
+        return;
+      }
+      if (!autoReconnectRef.current) {
+        addLog('🔴 Disconnected. Auto-Reconnect is OFF.');
+        return;
+      }
+      addLog(`🔴 Disconnected. Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`);
+      reconnectTimer.current = setTimeout(() => {
+        // BUG FIX: use ref so we always get the latest appDetails
+        connectWebSocket(appDetailsRef.current, logModeRef.current, true);
+      }, RECONNECT_DELAY_MS);
+    };
+
+    wsRef.current = ws;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appName, addLog]);
+
+  // ── Fetch app details ──────────────────────────────────────────────────────
+  const fetchAppDetails = useCallback(async (key) => {
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const response = await axios.get(`${API_URL}/api/services`, { headers: { "x-api-key": key } });
-      
-      if (response.data.status === "success") {
-        const services = response.data.data || [];
-        const currentApp = services.find(s => s.pm2_name === appName);
-        
-        if (currentApp) {
-          setAppDetails(currentApp);
-          setAutoDeploy(currentApp.auto_deploy !== false); 
-          
-          if (currentApp.update_pending) {
-            setShowUpdatePopup(true);
-          }
-          
-          // 🔥 FIX: Jab page refresh ho, toh check karo ki app band toh nahi padi hai
-          if (['offline', 'stopped', 'errored'].includes(currentApp.status)) {
-            userStoppedRef.current = true;
-          } else {
-            userStoppedRef.current = false;
-          }
+      const { data } = await axios.get(`${API_URL}/api/services`, {
+        headers: { 'x-api-key': key }
+      });
+      if (data.status === 'success') {
+        const app = (data.data || []).find(s => s.pm2_name === appName);
+        if (app) {
+          setAppDetails(app);
+          appDetailsRef.current = app; // BUG FIX: keep ref updated
+          setAutoDeploy(app.auto_deploy !== false);
+          if (app.update_pending) setShowUpdatePopup(true);
 
-          connectWebSocket(currentApp, logMode, false); 
+          // BUG FIX: set userStopped based on real status, not assumption
+          userStopped.current = ['offline', 'stopped', 'errored'].includes(app.status);
+          return app;
         } else {
-          setLogs(["❌ App not found in your account!"]);
+          setLogs(['❌ App not found in your account!']);
         }
       }
-    } catch (err) {
-      setLogs(["❌ Failed to fetch app details! Backend down?"]);
+    } catch {
+      setLogs(['❌ Failed to fetch app details. Is backend running?']);
     } finally {
       setIsLoading(false);
     }
-  };
+    return null;
+  }, [appName]);
 
-  // 2. 🔥 SMART WEBSOCKET LOGIC
-  const connectWebSocket = (app, mode = logMode, isReconnect = false) => {
-    isIntentionalClose.current = true; 
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    isIntentionalClose.current = false; 
-
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
-    const username = localStorage.getItem("cloud_username") || "user";
-    
-    let wsUrl = "";
-    
-    if (mode === 'build') {
-      wsUrl = `${wsBaseUrl}/ws/build-stream/${username}/${appName}`;
-      if (!isReconnect) {
-        setLogs([`> 🏗️ INITIALIZING LIVE BUILD ENGINE FOR [${appName}]...`, `> Connecting to secure pipeline...`]);
-      } else {
-        setLogs(prev => [...prev, `> 🔄 RECONNECTING TO BUILD STREAM...`]);
-      }
-    } else {
-      wsUrl = `${wsBaseUrl}/ws/stream/${appName}?use_docker=${app.use_docker ? 'true' : 'false'}`;
-      if (!isReconnect) {
-        setLogs([`> 📡 CONNECTING TO RUNTIME LOGS [${appName}]...`, `> Engine: ${app.use_docker ? 'Docker' : 'PM2'}`]);
-      } else {
-        setLogs(prev => [...prev, `> 🔄 RECONNECTING TO RUNTIME STREAM...`]);
-      }
-    }
-    
-    const ws = new WebSocket(wsUrl);
-    
-    ws.onmessage = (event) => {
-      const text = event.data;
-      setLogs((prev) => [...prev, text]);
-
-      if (mode === 'build' && (text.includes('NEX_CLOUD_BUILD_COMPLETE') || text.includes('NEX_CLOUD_BUILD_FAILED'))) {
-        setLogs(prev => [...prev, "", "> 🏁 Build process finished! You can now manually switch to RUNTIME logs."]);
-      }
-    };
-    
-    ws.onerror = () => {
-    };
-
-    ws.onclose = () => {
-      if (!isIntentionalClose.current) {
-        if (userStoppedRef.current) {
-          setLogs((prev) => [...prev, `🔴 App is stopped. Live stream paused.`]);
-          return; 
-        }
-
-        // 🔥 THE TOGGLE BRAKE: Agar Auto-Reconnect OFF hai toh wahi ruk jaayega
-        if (!autoReconnectRef.current) {
-          setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-Reconnect is OFF.`]);
-          return;
-        }
-
-        setLogs((prev) => [...prev, `🔴 Stream Disconnected. Auto-reconnecting in 3s...`]);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket(app, mode, true); 
-        }, 3000);
-      }
-    };
-    
-    wsRef.current = ws;
-  };
-
-  const switchLogMode = (newMode, app = appDetails) => {
-    if (!app) return;
-    setLogMode(newMode);
-    setLogs([]); 
-    connectWebSocket(app, newMode, false); 
-  };
-
+  // ── Mount ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [logs]);
+    const key = localStorage.getItem('cloud_api_key');
+    if (!key) { navigate('/login'); return; }
+    setApiKey(key);
 
-  // 3. Handle Actions
+    fetchAppDetails(key).then(app => {
+      if (app) connectWebSocket(app, logMode, false);
+    });
+
+    return () => {
+      intentionalClose.current = true;
+      wsRef.current?.close();
+      clearTimeout(reconnectTimer.current);
+    };
+  // Only run on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Switch log mode (tab click) ────────────────────────────────────────────
+  const switchLogMode = useCallback((newMode) => {
+    if (!appDetailsRef.current) return;
+    setLogMode(newMode);
+    logModeRef.current = newMode;
+    connectWebSocket(appDetailsRef.current, newMode, false);
+  }, [connectWebSocket]);
+
+  // ── Toggle auto-reconnect ──────────────────────────────────────────────────
+  const handleToggleAutoReconnect = () => {
+    const next = !autoReconnect;
+    setAutoReconnect(next);
+    autoReconnectRef.current = next;
+    localStorage.setItem('nex_auto_reconnect', String(next));
+
+    if (next && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+      connectWebSocket(appDetailsRef.current, logModeRef.current, true);
+    }
+  };
+
+  // ── Actions ────────────────────────────────────────────────────────────────
   const handleAction = async (type) => {
-    setActionType(type); 
+    setActionType(type);
     setIsActionLoading(true);
-    
-    if (type === 'stop') {
-      userStoppedRef.current = true; 
-    } else if (['start', 'restart', 'redeploy', 'git_pull'].includes(type)) {
-      userStoppedRef.current = false; 
-    }
 
+    if (type === 'stop') {
+      userStopped.current = true;
+    } else if (['start', 'restart', 'redeploy', 'git_pull'].includes(type)) {
+      userStopped.current = false;
+    }
     if (type === 'git_pull') setShowUpdatePopup(false);
 
+    const backendAction = type === 'redeploy' ? 'reset' : type;
+
+    // Switch to build tab for deploy actions
+    if (['reset', 'git_pull'].includes(backendAction)) {
+      switchLogMode('build');
+    }
+
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const backendAction = type === 'redeploy' ? 'reset' : type;
+      await axios.post(
+        `${API_URL}/api/action`,
+        { app_name: appName, action: backendAction },
+        { headers: { 'x-api-key': apiKey } }
+      );
 
-      if (backendAction === 'reset' || backendAction === 'git_pull') {
-        switchLogMode('build');
-      } 
-
-      await axios.post(`${API_URL}/api/action`, { 
-        app_name: appName, 
-        action: backendAction 
-      }, { headers: { "x-api-key": apiKey } });
-      
       if (backendAction === 'clear_logs') {
-        setLogs([`✅ System logs flushed successfully for ${appName}.`]);
+        setLogs([`✅ Logs flushed for ${appName}.`]);
       }
 
-      setTimeout(() => {
-        fetchAppDetails(apiKey);
+      // BUG FIX: use ref inside timeout so appDetails is never stale
+      setTimeout(async () => {
+        const fresh = await fetchAppDetails(apiKey);
+        if (fresh) appDetailsRef.current = fresh;
         setIsActionLoading(false);
-        setActionType("");
-        
-        if (['start', 'restart', 'reset', 'git_pull'].includes(type) && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
-           connectWebSocket(appDetails, logMode, true);
+        setActionType('');
+
+        // Reconnect WS if it dropped
+        if (
+          ['start', 'restart', 'reset', 'git_pull'].includes(backendAction) &&
+          (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)
+        ) {
+          connectWebSocket(appDetailsRef.current, logModeRef.current, true);
         }
-      }, 1000); 
-      
+      }, 1200);
     } catch (err) {
-      setLogs(prev => [...prev, `❌ Action failed: ${err.response?.data?.detail || err.message}`]);
+      addLog(`❌ Action failed: ${err.response?.data?.detail || err.message}`);
       setIsActionLoading(false);
-      setActionType("");
+      setActionType('');
     }
   };
 
-  // 4. Handle Auto-Deploy Toggle
+  // ── Auto-deploy toggle ─────────────────────────────────────────────────────
   const handleToggleAutoDeploy = async () => {
+    if (isToggleLoading) return;
     setIsToggleLoading(true);
-    const newStatus = !autoDeploy;
-    setAutoDeploy(newStatus); 
-
+    const next = !autoDeploy;
+    setAutoDeploy(next);
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      await axios.post(`${API_URL}/api/toggle-autodeploy`, {
-        app_name: appName,
-        status: newStatus
-      }, { headers: { "x-api-key": apiKey } });
-      
-      setLogs(prev => [...prev, `> ⚙️ SYSTEM: Auto-Deploy via GitHub is now ${newStatus ? 'ON' : 'OFF'}.`]);
-    } catch (err) {
-      setAutoDeploy(!newStatus);
-      setLogs(prev => [...prev, `❌ SYSTEM: Failed to change Auto-Deploy status.`]);
+      await axios.post(
+        `${API_URL}/api/toggle-autodeploy`,
+        { app_name: appName, status: next },
+        { headers: { 'x-api-key': apiKey } }
+      );
+      addLog(`> ⚙️ Auto-Deploy is now ${next ? 'ON ✅' : 'OFF 🔴'}`);
+    } catch {
+      setAutoDeploy(!next);
+      addLog('❌ Failed to toggle Auto-Deploy.');
     } finally {
       setIsToggleLoading(false);
     }
   };
 
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const actionLabel = {
+    start:      'IGNITING',
+    stop:       'HALTING',
+    restart:    'REBOOTING',
+    redeploy:   'REBUILDING',
+    clear_logs: 'FLUSHING',
+    git_pull:   'PULLING',
+  }[actionType] || 'PROCESSING';
+
+  // ── Loading screen ─────────────────────────────────────────────────────────
   if (isLoading) {
-    return <div className="h-screen bg-[#050505] flex items-center justify-center text-purple-500 animate-pulse font-mono tracking-widest uppercase">Initializing Terminal Interface...</div>;
+    return (
+      <div className="h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
+        <Zap size={32} className="text-violet-500 animate-pulse" />
+        <p className="text-violet-400 font-mono text-sm tracking-[0.3em] uppercase animate-pulse">
+          Initializing Terminal...
+        </p>
+      </div>
+    );
   }
 
-  const getLoadingText = () => {
-    if (actionType === 'start') return 'IGNITING SYSTEM';
-    if (actionType === 'stop') return 'SHUTTING DOWN';
-    if (actionType === 'restart') return 'RESTARTING ENGINE';
-    if (actionType === 'redeploy') return 'INITIALIZING BUILD';
-    if (actionType === 'clear_logs') return 'SWEEPING LOGS';
-    if (actionType === 'git_pull') return 'FETCHING NEW CODE';
-    return 'PROCESSING';
-  };
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen bg-[#050505] text-gray-200 font-sans flex flex-col relative overflow-hidden">
+    <div className="h-screen bg-[#050505] text-gray-200 flex flex-col overflow-hidden relative">
       <Background />
-      
-      {/* 🚨 GITHUB UPDATE POPUP */}
+
+      {/* ── GitHub Update Popup ───────────────────────────────────────────── */}
       <AnimatePresence>
         {showUpdatePopup && (
-          <motion.div 
-            initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} 
-            className="absolute top-20 left-1/2 -translate-x-1/2 z-[90] w-[90%] max-w-md bg-[#0a0a0a]/90 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-5 shadow-[0_0_40px_rgba(59,130,246,0.15)]"
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -40, scale: 0.96 }}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-sm
+              bg-[#0d0d0f] border border-blue-500/25 rounded-2xl p-5
+              shadow-[0_0_60px_rgba(59,130,246,0.12)]"
           >
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-500/10 rounded-xl shrink-0">
-                <AlertTriangle size={24} className="text-blue-400" />
+            <div className="flex gap-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20
+                flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} className="text-blue-400" />
               </div>
-              <div>
-                <h3 className="text-white font-bold text-lg mb-1">Update Available!</h3>
-                <p className="text-gray-400 text-sm mb-4">A new push was detected on your GitHub repository. Since Auto-Deploy is OFF, manual approval is required.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => handleAction('git_pull')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 rounded-lg transition-colors shadow-lg">
+              <div className="min-w-0">
+                <p className="text-white font-bold text-sm mb-1">New Push Detected</p>
+                <p className="text-gray-400 text-xs leading-relaxed mb-4">
+                  GitHub received a push. Auto-Deploy is OFF — approve manually to deploy.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleAction('git_pull')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs
+                      font-bold py-2 rounded-lg transition-colors"
+                  >
                     Pull & Deploy
                   </button>
-                  <button onClick={() => setShowUpdatePopup(false)} className="px-4 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-bold py-2 rounded-lg transition-colors border border-white/5">
+                  <button
+                    onClick={() => setShowUpdatePopup(false)}
+                    className="px-4 bg-white/5 hover:bg-white/10 text-gray-400 text-xs
+                      font-bold py-2 rounded-lg transition-colors border border-white/5"
+                  >
                     Dismiss
                   </button>
                 </div>
@@ -304,168 +419,207 @@ export default function Terminal() {
         )}
       </AnimatePresence>
 
-      {/* 🔥 ACTION OVERLAY */}
+      {/* ── Action Overlay ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isActionLoading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center">
-            <div className="flex flex-col items-center">
-              <RotateCw size={48} className="text-purple-500 animate-spin mb-4 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]" />
-              <div className="text-purple-400 font-mono text-xl font-bold tracking-[0.3em] uppercase animate-pulse text-center px-4">
-                {getLoadingText()}...
-              </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm
+              flex flex-col items-center justify-center gap-5"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20
+              flex items-center justify-center">
+              <RotateCw size={28} className="text-violet-400 animate-spin" />
             </div>
+            <p className="text-violet-300 font-mono text-sm font-bold tracking-[0.4em] uppercase animate-pulse">
+              {actionLabel}...
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 🚀 TOP NAVBAR */}
-      <nav className="border-b border-white/5 bg-[#0a0a0a] z-50 shrink-0">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-4 justify-between sm:items-center">
-          
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white shrink-0">
-              <ArrowLeft size={18} />
+      {/* ── Navbar ────────────────────────────────────────────────────────── */}
+      <nav className="shrink-0 z-50 bg-[#09090b]/95 backdrop-blur border-b border-white/[0.06]">
+        <div className="px-3 sm:px-5 py-3 flex flex-col gap-3">
+
+          {/* Row 1: back + name + status */}
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              to="/dashboard"
+              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5
+                flex items-center justify-center text-gray-400 hover:text-white transition-all shrink-0"
+            >
+              <ArrowLeft size={15} />
             </Link>
-            <div className="flex flex-col min-w-0">
-              <h1 className="text-lg font-black text-white flex items-center gap-2 tracking-widest truncate">
-                <TerminalIcon size={18} className="text-purple-400 shrink-0"/> <span className="truncate">{appName.toUpperCase()}</span>
-              </h1>
-              
-              {appDetails && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1">
-                  <span className="flex items-center gap-1 text-gray-500 shrink-0">
-                    {appDetails.use_docker ? <Cpu size={12}/> : <Box size={12}/>} 
-                    {appDetails.use_docker ? 'Docker' : 'PM2'}
-                  </span>
-                  <span className={`flex items-center gap-1 shrink-0 ${appDetails.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>
-                    <CircleDot size={10} className={appDetails.status === 'online' ? 'animate-pulse' : ''} />
-                    {appDetails.status || 'Unknown'}
-                  </span>
-                  <div className="w-px h-3 bg-white/20 hidden sm:block"></div>
-                  {/* ⚙️ AUTO-DEPLOY TOGGLE */}
-                  <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={handleToggleAutoDeploy}>
-                    <span className={`flex items-center gap-1 transition-colors ${autoDeploy ? 'text-blue-400' : 'text-gray-500'}`}>
-                      <GitBranch size={12} /> Auto-Deploy
-                    </span>
-                    <button disabled={isToggleLoading} className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${autoDeploy ? 'bg-blue-600' : 'bg-gray-600'}`}>
-                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${autoDeploy ? 'translate-x-4' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-                </div>
-              )}
+
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <TerminalIcon size={16} className="text-violet-400 shrink-0" />
+              <span className="text-sm font-black text-white tracking-widest truncate font-mono uppercase">
+                {appName}
+              </span>
+              {appDetails && <StatusBadge status={appDetails.status} />}
             </div>
+
+            {/* Engine badge */}
+            {appDetails && (
+              <span className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg
+                bg-white/5 border border-white/5 text-gray-500 text-[10px] font-bold
+                uppercase tracking-widest shrink-0">
+                {appDetails.use_docker ? <Cpu size={10} /> : <Box size={10} />}
+                {appDetails.use_docker ? 'Docker' : 'PM2'}
+              </span>
+            )}
           </div>
-          
-          {/* Controls Menu */}
-          <div className="flex items-center gap-2 bg-[#050505] p-1 rounded-xl border border-white/5 overflow-x-auto shrink-0 pb-1 sm:pb-0 scrollbar-hide">
-            <button onClick={() => handleAction('start')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap">
-              <Play size={16} className="fill-green-400/20 shrink-0"/> <span className="hidden sm:inline">Start</span>
+
+          {/* Row 2: action controls */}
+          <div className="flex items-center justify-between gap-2">
+
+            {/* Left: Auto-Deploy toggle */}
+            <button
+              onClick={handleToggleAutoDeploy}
+              disabled={isToggleLoading}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5
+                hover:bg-white/8 border border-white/5 transition-all disabled:opacity-50"
+            >
+              <GitBranch size={11} className={autoDeploy ? 'text-blue-400' : 'text-gray-500'} />
+              <span className={`text-[10px] font-bold uppercase tracking-widest
+                ${autoDeploy ? 'text-blue-400' : 'text-gray-500'}`}>
+                Auto
+              </span>
+              {/* Toggle pill */}
+              <div className={`relative w-7 h-4 rounded-full transition-colors
+                ${autoDeploy ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all
+                  ${autoDeploy ? 'left-3.5' : 'left-0.5'}`} />
+              </div>
             </button>
-            <button onClick={() => handleAction('restart')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap">
-              <RotateCw size={16} className="shrink-0" /> <span className="hidden sm:inline">Restart</span>
-            </button>
-            <button onClick={() => handleAction('stop')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap">
-              <Square size={16} className="fill-red-400/20 shrink-0"/> <span className="hidden sm:inline">Stop</span>
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-1 shrink-0"></div>
-            <button onClick={() => handleAction('git_pull')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap" title="Manually pull latest code">
-              <DownloadCloud size={16} className="shrink-0"/> <span className="hidden sm:inline">Pull Code</span>
-            </button>
-            <button onClick={() => handleAction('redeploy')} disabled={isActionLoading} className="p-2 sm:px-4 sm:py-2 flex items-center gap-2 text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors text-xs sm:text-sm font-bold disabled:opacity-50 whitespace-nowrap" title="Force reinstall requirements & deploy">
-              <RefreshCcw size={16} className="shrink-0"/> <span className="hidden sm:inline">Reset</span>
-            </button>
+
+            {/* Right: action buttons */}
+            <div className="flex items-center gap-1">
+              <ActionBtn onClick={() => handleAction('start')}   disabled={isActionLoading} icon={Play}         label="Start"    colorClass="text-emerald-400 hover:bg-emerald-500/10" />
+              <ActionBtn onClick={() => handleAction('restart')} disabled={isActionLoading} icon={RotateCw}     label="Restart"  colorClass="text-violet-400 hover:bg-violet-500/10" />
+              <ActionBtn onClick={() => handleAction('stop')}    disabled={isActionLoading} icon={Square}       label="Stop"     colorClass="text-red-400 hover:bg-red-500/10" />
+              <div className="w-px h-5 bg-white/10 mx-0.5" />
+              <ActionBtn onClick={() => handleAction('git_pull')} disabled={isActionLoading} icon={DownloadCloud} label="Pull"   colorClass="text-sky-400 hover:bg-sky-500/10" />
+              <ActionBtn onClick={() => handleAction('redeploy')} disabled={isActionLoading} icon={RefreshCcw}   label="Reset"  colorClass="text-amber-400 hover:bg-amber-500/10" />
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* 🖥️ TERMINAL WINDOW */}
-      <div className="flex-1 p-2 sm:p-4 flex flex-col min-h-0 z-10 w-full max-w-7xl mx-auto pb-6 sm:pb-4">
-        <div className="flex-1 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-          
-          {/* Mac-style Window Header with 📡 TABS */}
-          <div className="h-12 bg-black border-b border-white/5 flex items-center justify-between px-2 sm:px-4 shrink-0 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5 mr-2 sm:mr-0 pl-1 hidden sm:flex">
-                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+      {/* ── Terminal Window ───────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 p-2 sm:p-4 flex flex-col z-10">
+        <div className="flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden
+          border border-white/[0.07] bg-[#050507]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_32px_64px_rgba(0,0,0,0.6)]">
+
+          {/* Terminal chrome bar */}
+          <div className="shrink-0 h-11 bg-[#0c0c0f] border-b border-white/[0.06]
+            flex items-center justify-between px-3 gap-2">
+
+            {/* Left: dots + tabs */}
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Traffic lights – hidden on very small screens */}
+              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                <div className="w-3 h-3 rounded-full bg-red-500/70 hover:bg-red-500 transition-colors cursor-default" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/70 hover:bg-yellow-500 transition-colors cursor-default" />
+                <div className="w-3 h-3 rounded-full bg-emerald-500/70 hover:bg-emerald-500 transition-colors cursor-default" />
               </div>
-              
-              {/* 🔥 TABS START */}
-              <div className="flex items-center gap-1 sm:gap-2 sm:ml-4 p-1 bg-white/5 rounded-lg shrink-0">
-                <button 
+
+              {/* Mode tabs */}
+              <div className="flex items-center gap-1 p-0.5 bg-white/[0.04] rounded-lg border border-white/[0.04]">
+                <button
                   onClick={() => switchLogMode('runtime')}
-                  className={`px-2 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold font-mono tracking-widest transition-all whitespace-nowrap ${logMode === 'runtime' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                  className={`px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold font-mono
+                    tracking-wider transition-all whitespace-nowrap
+                    ${logMode === 'runtime'
+                      ? 'bg-violet-600/90 text-white shadow-[0_0_12px_rgba(124,58,237,0.4)]'
+                      : 'text-gray-500 hover:text-gray-300'}`}
                 >
-                  📡 RUNTIME
+                  📡 Runtime
                 </button>
-                <button 
+                <button
                   onClick={() => switchLogMode('build')}
-                  className={`px-2 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold font-mono tracking-widest transition-all whitespace-nowrap ${logMode === 'build' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                  className={`px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold font-mono
+                    tracking-wider transition-all whitespace-nowrap
+                    ${logMode === 'build'
+                      ? 'bg-sky-600/90 text-white shadow-[0_0_12px_rgba(14,165,233,0.4)]'
+                      : 'text-gray-500 hover:text-gray-300'}`}
                 >
-                  🏗️ BUILD LOGS
+                  🏗️ Build
                 </button>
               </div>
             </div>
 
-            {/* 🔥 NAYA: AUTO-RECONNECT TOGGLE & FLUSH LOGS */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              
-              {/* Auto Reconnect Switch */}
-              <div 
-                onClick={handleToggleAutoReconnect}
-                className="flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors"
-                title="Auto-Reconnect WebSocket if disconnected"
-              >
-                <span className={`text-[10px] sm:text-xs font-bold font-mono tracking-widest ${autoReconnect ? 'text-green-400' : 'text-gray-500'}`}>
-                  RECONNECT
-                </span>
-                <button type="button" className={`relative inline-flex h-3 w-6 items-center rounded-full transition-colors focus:outline-none ${autoReconnect ? 'bg-green-500' : 'bg-gray-600'}`}>
-                  <span className={`inline-block h-2 w-2 transform rounded-full bg-white transition-transform ${autoReconnect ? 'translate-x-3.5' : 'translate-x-1'}`} />
-                </button>
-              </div>
+            {/* Right: WS status + toggles */}
+            <div className="flex items-center gap-2 shrink-0">
 
-              <button 
-                onClick={() => handleAction('clear_logs')} 
-                disabled={isActionLoading || logMode === 'build'}
-                title={logMode === 'build' ? "Cannot flush build logs" : "Clear PM2 Logs"}
-                className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md transition-colors font-mono text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap ${logMode === 'build' ? 'opacity-30 cursor-not-allowed text-gray-600' : 'bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400'}`}
+              {/* Live connection indicator */}
+              <WsDot state={wsState} />
+
+              {/* Auto-Reconnect toggle */}
+              <button
+                onClick={handleToggleAutoReconnect}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.04]
+                  hover:bg-white/[0.08] border border-white/[0.04] transition-all"
+                title="Auto-Reconnect WebSocket"
               >
-                <Trash2 size={14} className="shrink-0"/> <span className="hidden sm:inline">Flush Logs</span>
+                <span className={`text-[10px] font-bold font-mono tracking-wider
+                  ${autoReconnect ? 'text-emerald-400' : 'text-gray-600'}`}>
+                  <span className="hidden sm:inline">AUTO </span>⟲
+                </span>
+                <div className={`relative w-6 h-3.5 rounded-full transition-colors
+                  ${autoReconnect ? 'bg-emerald-600' : 'bg-gray-700'}`}>
+                  <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white
+                    transition-all ${autoReconnect ? 'left-3' : 'left-0.5'}`} />
+                </div>
+              </button>
+
+              {/* Flush logs */}
+              <button
+                onClick={() => handleAction('clear_logs')}
+                disabled={isActionLoading || logMode === 'build'}
+                title={logMode === 'build' ? 'Cannot flush build logs' : 'Flush PM2 logs'}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md font-mono
+                  text-[10px] font-bold transition-all border border-transparent
+                  disabled:opacity-25 disabled:cursor-not-allowed
+                  bg-white/[0.04] hover:bg-red-500/10 hover:border-red-500/20
+                  text-gray-500 hover:text-red-400"
+              >
+                <Trash2 size={12} />
+                <span className="hidden sm:inline">Flush</span>
               </button>
             </div>
           </div>
 
-          {/* Logs Area */}
-          <div className="flex-1 p-3 sm:p-4 overflow-y-auto font-mono text-[11px] sm:text-[13px] leading-relaxed tracking-wide scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-[#050505]">
-            {logs.length === 0 ? (
-              <div className="text-gray-600 italic">Waiting for incoming logs...</div>
-            ) : (
-              logs.map((log, i) => {
-                let colorClass = "text-gray-300";
-                if (logMode === 'build') {
-                  if (log.includes('🚀') || log.includes('✅')) colorClass = "text-green-400 font-bold";
-                  else if (log.includes('❌') || log.includes('🚨')) colorClass = "text-red-400 font-bold";
-                  else if (log.includes('🧹') || log.includes('🐳') || log.includes('📦')) colorClass = "text-blue-400";
-                } else {
-                  if (log.includes('❌') || log.includes('🔴')) colorClass = "text-red-400";
-                  else if (log.includes('✅') || log.includes('⚙️')) colorClass = "text-blue-400";
-                  else colorClass = "text-green-400/90";
-                }
+          {/* ── Log area ────────────────────────────────────────────────── */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4
+            font-mono text-[11px] sm:text-[12.5px] leading-relaxed
+            scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent
+            bg-[#050507]">
 
-                return (
-                  <div key={i} className={`${colorClass} break-words whitespace-pre-wrap mb-1`}>
-                    {log}
-                  </div>
-                );
-              })
+            {logs.length === 0 ? (
+              <span className="text-gray-700 italic">Waiting for logs...</span>
+            ) : (
+              logs.map((line, i) => (
+                <div
+                  key={i}
+                  className={`break-all whitespace-pre-wrap mb-0.5 ${getLogColor(line, logMode)}`}
+                >
+                  {line || '\u00A0'}
+                </div>
+              ))
             )}
             <div ref={logsEndRef} />
           </div>
-          
-          <div className="absolute top-[48px] left-0 right-0 h-4 bg-gradient-to-b from-[#050505] to-transparent pointer-events-none"></div>
+
+          {/* Bottom gradient fade */}
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8
+            bg-gradient-to-t from-[#050507] to-transparent" />
         </div>
       </div>
     </div>
   );
-}
+      }
