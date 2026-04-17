@@ -17,8 +17,11 @@ import Terminal from './pages/Terminal';
 
 // 🔥 NAYE COMPONENTS
 import Suspended from './pages/Suspended';
-import RepoVisualizer from './pages/RepoVisualizer'; // 👈 YAHAN IMPORT KIYA TERA NAYA TOOL
+import RepoVisualizer from './pages/RepoVisualizer'; 
 import BroadcastBanner from './components/BroadcastBanner';
+
+// 🚀 YOUTUBE MEDIA ENGINE IMPORT
+import Downloader from './pages/Downloader'; 
 
 // ==========================================
 // 🛑 MAINTENANCE SCREEN UI
@@ -164,9 +167,13 @@ export default function App() {
               <RequireAuth><RequireActiveAccount><Terminal /></RequireActiveAccount></RequireAuth>
             } />
 
-            {/* 👈 TERA NAYA REPO VISUALIZER ROUTE */}
             <Route path="/repo-visualizer" element={
               <RequireAuth><RequireActiveAccount><RepoVisualizer /></RequireActiveAccount></RequireAuth>
+            } />
+
+            {/* 🚀 TERA NAYA YOUTUBE MEDIA ENGINE ROUTE */}
+            <Route path="/downloader" element={
+              <RequireAuth><RequireActiveAccount><Downloader /></RequireActiveAccount></RequireAuth>
             } />
 
             <Route path="/deploy" element={
