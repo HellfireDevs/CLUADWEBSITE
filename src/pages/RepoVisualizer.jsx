@@ -26,14 +26,15 @@ export default function RepoVisualizer() {
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  useEffect(() => {
+    useEffect(() => {
     const apiKey = localStorage.getItem("cloud_api_key");
-    if (!apiKey) {
-      navigate('/login');
-      return;
+    // Agar API key hai tabhi repo fetch karega, warna chup-chaap baitha rahega
+    if (apiKey) {
+      fetchGitHubRepos(apiKey);
     }
-    fetchGitHubRepos(apiKey);
-  }, [navigate]);
+    // Yahan se maine "navigate('/login')" hata diya hai!
+  }, []);
+  
 
   const fetchGitHubRepos = async (apiKey) => {
     setIsLoadingRepos(true);
