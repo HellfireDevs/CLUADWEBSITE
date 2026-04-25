@@ -167,9 +167,8 @@ export default function App() {
               <RequireAuth><RequireActiveAccount><Terminal /></RequireActiveAccount></RequireAuth>
             } />
 
-            <Route path="/repo-visualizer" element={
-              <RequireAuth><RequireActiveAccount><RepoVisualizer /></RequireActiveAccount></RequireAuth>
-            } />
+            <Route path="/repo-visualizer" element={<RepoVisualizer />} />
+            
 
             {/* 🚀 TERA NAYA YOUTUBE MEDIA ENGINE ROUTE */}
             <Route path="/downloader" element={
